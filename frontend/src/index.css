@@ -879,11 +879,12 @@ a {
 
 @media (max-width: 900px) {
   .gestor {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .gestor__menu {
     position: sticky;
+    min-width: 0;
     height: auto;
     z-index: 2;
     flex-direction: row;
@@ -899,6 +900,7 @@ a {
     order: 3;
     flex-direction: row;
     width: 100%;
+    min-width: 0;
     overflow-x: auto;
   }
 
