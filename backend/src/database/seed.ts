@@ -150,11 +150,21 @@ async function executar() {
   const senha = process.env.SEED_SENHA;
   if (!senha) throw new Error('Defina SEED_SENHA no .env para rodar o seed.');
 
+  const recriar = process.argv.includes('--recriar');
+  if (recriar && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      '--recriar apaga todos os dados e não pode rodar em produção.',
+    );
+  }
+
   await dataSource.initialize();
   try {
+    if (recriar) await dataSource.dropDatabase();
     await dataSource.runMigrations();
     if ((await dataSource.getRepository(Usuario).count()) > 0) {
-      console.log('O banco já possui usuários; seed ignorado.');
+      console.log(
+        'O banco já possui usuários; seed ignorado. Use `npm run seed:recriar` para apagar e recriar.',
+      );
       return;
     }
     await dataSource.transaction((em) => popular(em, senha));
