@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module.js';
 import { opcoesTypeOrm } from './database/typeorm.config.js';
 import { HealthController } from './health.controller.js';
+import { MotoristasModule } from './motoristas/motoristas.module.js';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { HealthController } from './health.controller.js';
       useFactory: () => ({ ...opcoesTypeOrm(), migrationsRun: true }),
     }),
     AuthModule,
+    MotoristasModule,
   ],
   controllers: [HealthController],
 })
