@@ -73,10 +73,11 @@ Isso inicia o MySQL na porta `3307` do host (para não colidir com um MySQL loca
 cd backend
 cp .env.example .env
 npm install
+npm run seed
 npm run start:dev
 ```
 
-A API sobe em `http://localhost:3000`.
+O `seed` aplica as migrations e cria dados de demonstração (um gestor, dois motoristas, veículos, clientes e ordens do dia). Os e-mails e a senha desses usuários estão em `backend/.env.example`. A API sobe em `http://localhost:3000/api`; os endpoints estão descritos em [`docs/api.md`](docs/api.md).
 
 **4. Rode o front-end**
 
@@ -87,6 +88,16 @@ npm run dev
 ```
 
 A aplicação sobe em `http://localhost:5173`.
+
+## Testes
+
+```bash
+cd backend
+npm test            # unitários (máquina de estados do RF04)
+npm run test:e2e    # ponta a ponta, contra o banco sigcf_test
+```
+
+Os testes e2e recriam o schema do banco `sigcf_test` a cada execução e se recusam a rodar em qualquer outro banco, preservando os dados de desenvolvimento.
 
 ## Escopo do MVP
 
