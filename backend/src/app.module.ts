@@ -6,6 +6,7 @@ import { ClientesModule } from './clientes/clientes.module.js';
 import { opcoesTypeOrm } from './database/typeorm.config.js';
 import { HealthController } from './health.controller.js';
 import { MotoristasModule } from './motoristas/motoristas.module.js';
+import { OrdensModule } from './ordens/ordens.module.js';
 import { VeiculosModule } from './veiculos/veiculos.module.js';
 
 @Module({
@@ -18,6 +19,7 @@ import { VeiculosModule } from './veiculos/veiculos.module.js';
     MotoristasModule,
     VeiculosModule,
     ClientesModule,
+    OrdensModule,
   ],
   controllers: [HealthController],
 })
