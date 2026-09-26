@@ -9,6 +9,7 @@ import { NovaOrdem } from './paginas/gestor/NovaOrdem.tsx'
 import { Ordens } from './paginas/gestor/Ordens.tsx'
 import { Painel } from './paginas/gestor/Painel.tsx'
 import { Login } from './paginas/Login.tsx'
+import { MinhasColetas } from './paginas/motorista/MinhasColetas.tsx'
 
 function Inicio() {
   const { usuario } = useAuth()
@@ -30,6 +31,10 @@ export default function App() {
           <Route path="veiculos" element={<Veiculos />} />
           <Route path="clientes" element={<Clientes />} />
         </Route>
+      </Route>
+
+      <Route element={<RotaProtegida perfil="MOTORISTA" />}>
+        <Route path="/motorista" element={<MinhasColetas />} />
       </Route>
 
       <Route path="*" element={<Inicio />} />
