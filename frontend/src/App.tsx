@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router'
 import { rotaInicial } from './auth/contexto.ts'
 import { RotaProtegida } from './auth/RotaProtegida.tsx'
 import { useAuth } from './auth/useAuth.ts'
+import { Clientes, Motoristas, Veiculos } from './paginas/gestor/Cadastros.tsx'
 import { DetalheOrdem } from './paginas/gestor/DetalheOrdem.tsx'
 import { LayoutGestor } from './paginas/gestor/LayoutGestor.tsx'
 import { NovaOrdem } from './paginas/gestor/NovaOrdem.tsx'
@@ -25,6 +26,9 @@ export default function App() {
           <Route path="ordens" element={<Ordens />} />
           <Route path="ordens/nova" element={<NovaOrdem />} />
           <Route path="ordens/:id" element={<DetalheOrdem />} />
+          <Route path="motoristas" element={<Motoristas />} />
+          <Route path="veiculos" element={<Veiculos />} />
+          <Route path="clientes" element={<Clientes />} />
         </Route>
       </Route>
 
