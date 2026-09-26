@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { opcoesTypeOrm } from './database/typeorm.config.js';
 import { HealthController } from './health.controller.js';
 import { MotoristasModule } from './motoristas/motoristas.module.js';
+import { VeiculosModule } from './veiculos/veiculos.module.js';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { MotoristasModule } from './motoristas/motoristas.module.js';
     }),
     AuthModule,
     MotoristasModule,
+    VeiculosModule,
   ],
   controllers: [HealthController],
 })
