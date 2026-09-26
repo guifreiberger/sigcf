@@ -16,6 +16,8 @@ export function opcoesTypeOrm(): DataSourceOptions {
     database: process.env.DB_NAME,
     charset: 'utf8mb4',
     timezone: 'Z',
+    // Sem isso o driver converte DATE em Date à meia-noite UTC e o dia recua no fuso -03:00.
+    dateStrings: ['DATE'],
     entities: [Usuario, Veiculo, Cliente, OrdemColeta, HistoricoStatus],
     migrations: [join(import.meta.dirname, 'migrations', '*.js')],
     synchronize: false,

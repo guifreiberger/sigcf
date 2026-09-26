@@ -243,6 +243,7 @@ describe('API do SIGCF (e2e)', () => {
         .expect(201);
       expect(res.body).toMatchObject({
         status: 'AGUARDANDO',
+        dataColeta: hoje(),
         enderecoColeta: 'Rua do Teste, 100',
         transicoesPermitidas: ['CANCELADA'],
       });
