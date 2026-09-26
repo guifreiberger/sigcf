@@ -30,5 +30,36 @@ services:
     ports:
       - "8080:8080"
 
+  # Sistema completo em containers: docker compose --profile app up -d --build
+  backend:
+    profiles: [app]
+    build: ./backend
+    container_name: sigcf-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER:-sigcf}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-sigcf}
+      DB_NAME: ${MYSQL_DATABASE:-sigcf}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no arquivo .env}
+      JWT_EXPIRES_IN_SEGUNDOS: ${JWT_EXPIRES_IN_SEGUNDOS:-28800}
+      SEED_SENHA: ${SEED_SENHA:-}
+
+  frontend:
+    profiles: [app]
+    build: ./frontend
+    container_name: sigcf-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8000}:80"
+
 volumes:
   mysql_data:

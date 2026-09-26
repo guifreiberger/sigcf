@@ -89,6 +89,18 @@ npm run dev
 
 A aplicação sobe em `http://localhost:5173`.
 
+### Sistema completo em containers
+
+Para rodar backend, frontend e banco inteiramente em Docker, sem Node.js instalado, como seria em um servidor:
+
+```bash
+cp .env.example .env
+docker compose --profile app up -d --build
+docker compose exec backend node dist/database/seed.js
+```
+
+A aplicação fica disponível em `http://localhost:8000`. O nginx serve o frontend e encaminha `/api` para o backend, que não fica exposto diretamente. Antes de qualquer deploy real, troque o `JWT_SECRET` e as senhas do `.env`.
+
 ## Testes
 
 ```bash
