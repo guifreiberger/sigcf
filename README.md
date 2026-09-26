@@ -77,7 +77,7 @@ npm run seed
 npm run start:dev
 ```
 
-O `seed` aplica as migrations e cria dados de demonstração (um gestor, dois motoristas, veículos, clientes e ordens do dia). Os e-mails e a senha desses usuários estão em `backend/.env.example`. A API sobe em `http://localhost:3000/api`; os endpoints estão descritos em [`docs/api.md`](docs/api.md).
+O `seed` aplica as migrations e cria dados de demonstração (um gestor, dois motoristas, veículos, clientes e ordens do dia). Os e-mails e a senha desses usuários estão em `backend/.env.example`. Como as coletas de demonstração são criadas para a data atual, use `npm run seed:recriar` para apagar e recriar a base em outro dia (bloqueado em produção). A API sobe em `http://localhost:3000/api`; os endpoints estão descritos em [`docs/api.md`](docs/api.md).
 
 **4. Rode o front-end**
 
@@ -110,6 +110,16 @@ npm run test:e2e    # ponta a ponta, contra o banco sigcf_test
 ```
 
 Os testes e2e recriam o schema do banco `sigcf_test` a cada execução e se recusam a rodar em qualquer outro banco, preservando os dados de desenvolvimento.
+
+## Documentação
+
+| Documento | Conteúdo |
+|---|---|
+| [`docs/der.md`](docs/der.md) | Modelo de dados, decisões de modelagem e máquina de estados da ordem |
+| [`docs/api.md`](docs/api.md) | Endpoints da API, perfis de acesso e códigos de erro |
+| [`docs/desempenho.md`](docs/desempenho.md) | Medição do requisito de 300 ms e teste de volume com 200 mil ordens |
+| [`docs/validacao/`](docs/validacao) | Roteiro de entrevista, questionário e protocolo de teste de usabilidade (SUS) |
+| [`docs/tcc/atualizacoes-proposta.tex`](docs/tcc/atualizacoes-proposta.tex) | Texto em LaTeX com RFs e RNFs atualizados para a proposta |
 
 ## Escopo do MVP
 
