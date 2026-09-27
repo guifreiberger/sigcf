@@ -736,6 +736,12 @@ a {
   font-size: 0.9rem;
 }
 
+.linha-tempo__local {
+  display: inline-block;
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+}
+
 .linha-tempo__motivo {
   margin-top: 0.3rem;
   padding: 0.4rem 0.7rem;

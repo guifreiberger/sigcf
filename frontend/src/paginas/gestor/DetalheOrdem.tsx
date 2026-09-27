@@ -10,6 +10,7 @@ import {
   formatarKg,
   formatarPlaca,
   formatarTelefone,
+  linkCoordenadas,
   ROTULO_STATUS,
 } from '../../util/formatos.ts'
 
@@ -98,6 +99,21 @@ export function DetalheOrdem() {
                   {h.statusAnterior ? 'Alterado' : 'Criada'} por {h.usuario.nome}
                 </span>
                 {h.motivo && <p className="linha-tempo__motivo">“{h.motivo}”</p>}
+                {h.latitude != null && h.longitude != null ? (
+                  <a
+                    className="linha-tempo__local"
+                    href={linkCoordenadas(h.latitude, h.longitude)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Ver local no mapa
+                    {h.precisaoMetros != null && ` (precisão de ${h.precisaoMetros} m)`}
+                  </a>
+                ) : (
+                  h.usuario.perfil === 'MOTORISTA' && (
+                    <span className="linha-tempo__local texto-suave">Localização não registrada</span>
+                  )
+                )}
               </li>
             ))}
           </ol>

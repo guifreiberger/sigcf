@@ -46,6 +46,10 @@ export function linkMapa(endereco: string) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}`
 }
 
+export function linkCoordenadas(latitude: number, longitude: number) {
+  return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
+}
+
 export const ROTULO_STATUS: Record<StatusOrdem, string> = {
   AGUARDANDO: 'Aguardando',
   EM_ANDAMENTO: 'Em andamento',
