@@ -3,10 +3,14 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
+  Max,
   MaxLength,
+  Min,
+  ValidateNested,
 } from 'class-validator';
 import { IsData } from '../../common/validacao.js';
 import { StatusOrdem } from '../status-ordem.enum.js';
@@ -39,6 +43,24 @@ export class CriarOrdemDto {
   observacao?: string;
 }
 
+export class LocalizacaoDto {
+  @IsNumber({}, { message: 'latitude inválida' })
+  @Min(-90, { message: 'latitude inválida' })
+  @Max(90, { message: 'latitude inválida' })
+  latitude: number;
+
+  @IsNumber({}, { message: 'longitude inválida' })
+  @Min(-180, { message: 'longitude inválida' })
+  @Max(180, { message: 'longitude inválida' })
+  longitude: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'precisão inválida' })
+  @Min(0, { message: 'precisão inválida' })
+  @Max(100_000, { message: 'precisão inválida' })
+  precisaoMetros?: number;
+}
+
 export class AlterarStatusDto {
   @IsEnum(StatusOrdem, { message: 'status inválido' })
   status: StatusOrdem;
@@ -47,6 +69,11 @@ export class AlterarStatusDto {
   @IsString()
   @MaxLength(255)
   motivo?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LocalizacaoDto)
+  localizacao?: LocalizacaoDto;
 }
 
 export class DataQueryDto {

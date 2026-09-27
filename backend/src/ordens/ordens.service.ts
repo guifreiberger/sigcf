@@ -168,6 +168,10 @@ export class OrdensService {
         throw new EXCECAO_POR_ERRO[erro.tipo](erro.message);
       }
 
+      // Coleta mínima: a localização só é guardada para ações do motorista em campo.
+      const local =
+        usuario.perfil === Perfil.MOTORISTA ? dto.localizacao : undefined;
+
       await em.update(OrdemColeta, ordem.id, { status: dto.status });
       await em.insert(HistoricoStatus, {
         ordemId: ordem.id,
@@ -175,6 +179,12 @@ export class OrdensService {
         statusAnterior: ordem.status,
         statusNovo: dto.status,
         motivo: dto.motivo?.trim() || null,
+        latitude: local?.latitude ?? null,
+        longitude: local?.longitude ?? null,
+        precisaoMetros:
+          local?.precisaoMetros == null
+            ? null
+            : Math.round(local.precisaoMetros),
       });
     });
 
