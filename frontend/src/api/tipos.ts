@@ -70,6 +70,7 @@ export interface Ordem {
   motoristaId: number
   enderecoColeta: string
   dataColeta: string
+  pesoEstimadoKg: number | null
   status: StatusOrdem
   observacao: string | null
   createdAt: string

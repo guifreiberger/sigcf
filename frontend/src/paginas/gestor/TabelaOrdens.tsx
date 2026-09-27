@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router'
 import type { Ordem } from '../../api/tipos.ts'
 import { StatusBadge } from '../../componentes/StatusBadge.tsx'
-import { formatarData, formatarPlaca } from '../../util/formatos.ts'
+import { formatarData, formatarKg, formatarPlaca } from '../../util/formatos.ts'
 
 export function TabelaOrdens({ ordens, mostrarData = false }: { ordens: Ordem[]; mostrarData?: boolean }) {
   const navegar = useNavigate()
@@ -16,6 +16,7 @@ export function TabelaOrdens({ ordens, mostrarData = false }: { ordens: Ordem[];
             <th>Cliente</th>
             <th>Motorista</th>
             <th>Veículo</th>
+            <th>Peso est.</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -34,6 +35,7 @@ export function TabelaOrdens({ ordens, mostrarData = false }: { ordens: Ordem[];
               </td>
               <td>{o.motorista?.nome}</td>
               <td>{formatarPlaca(o.veiculo.placa)}</td>
+              <td>{o.pesoEstimadoKg != null ? formatarKg(o.pesoEstimadoKg) : '—'}</td>
               <td>
                 <StatusBadge status={o.status} />
               </td>

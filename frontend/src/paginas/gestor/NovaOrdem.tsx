@@ -17,6 +17,7 @@ export function NovaOrdem() {
   const [dataColeta, setDataColeta] = useState(hojeLocal())
   const [endereco, setEndereco] = useState('')
   const [enderecoEditado, setEnderecoEditado] = useState(false)
+  const [pesoEstimado, setPesoEstimado] = useState('')
   const [observacao, setObservacao] = useState('')
 
   function escolherCliente(id: string) {
@@ -35,6 +36,7 @@ export function NovaOrdem() {
         motoristaId: Number(motoristaId),
         dataColeta,
         enderecoColeta: endereco.trim() || undefined,
+        pesoEstimadoKg: pesoEstimado ? Number(pesoEstimado) : undefined,
         observacao: observacao.trim() || undefined,
       },
       { onSuccess: (ordem) => navegar(`/gestor/ordens/${ordem.id}`, { replace: true }) },
@@ -122,6 +124,21 @@ export function NovaOrdem() {
               min={hojeLocal()}
               onChange={(e) => setDataColeta(e.target.value)}
               required
+            />
+          </label>
+
+          <label className="campo">
+            <span>
+              Peso estimado (kg) <small className="texto-suave">(opcional)</small>
+            </span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0.01}
+              step={0.01}
+              value={pesoEstimado}
+              onChange={(e) => setPesoEstimado(e.target.value)}
+              placeholder="Informado pelo cliente"
             />
           </label>
         </div>

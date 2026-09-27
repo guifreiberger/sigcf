@@ -67,6 +67,8 @@ export function DetalheOrdem() {
             </dd>
             <dt>Endereço</dt>
             <dd>{o.enderecoColeta}</dd>
+            <dt>Peso estimado</dt>
+            <dd>{o.pesoEstimadoKg != null ? formatarKg(o.pesoEstimadoKg) : 'Não informado'}</dd>
             <dt>Motorista</dt>
             <dd>
               {o.motorista?.nome}

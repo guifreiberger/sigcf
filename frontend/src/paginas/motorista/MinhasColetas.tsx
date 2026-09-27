@@ -8,6 +8,7 @@ import { Carregando, MensagemErro, Vazio } from '../../componentes/Estados.tsx'
 import { StatusBadge } from '../../componentes/StatusBadge.tsx'
 import {
   formatarDataExtenso,
+  formatarKg,
   formatarPlaca,
   formatarTelefone,
   hojeLocal,
@@ -207,6 +208,7 @@ function CartaoColeta({ ordem, ocupado, rotuloOcupado, aoIniciar, aoConcluir, ao
 
       <p className="coleta__veiculo texto-suave">
         Veículo {formatarPlaca(ordem.veiculo.placa)} · {ordem.veiculo.modelo}
+        {ordem.pesoEstimadoKg != null && ` · cerca de ${formatarKg(ordem.pesoEstimadoKg)}`}
       </p>
       {ordem.observacao && <p className="coleta__observacao pre-linha">{ordem.observacao}</p>}
 
