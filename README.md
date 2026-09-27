@@ -77,6 +77,8 @@ npm run seed
 npm run start:dev
 ```
 
+Para os avisos de coleta nova no celular, gere um par de chaves com `npx web-push generate-vapid-keys` e preencha `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` no `backend/.env` (e no `.env` da raiz, para o modo em containers). Sem essas chaves o sistema funciona normalmente, apenas sem enviar avisos. Os avisos só funcionam na versão instalada do app (build de produção ou containers), pois dependem do service worker; no iPhone, é preciso adicionar o SIGCF à Tela de Início.
+
 O `seed` aplica as migrations e cria dados de demonstração (um gestor, dois motoristas, veículos, clientes e ordens do dia). Os e-mails e a senha desses usuários estão em `backend/.env.example`. Como as coletas de demonstração são criadas para a data atual, use `npm run seed:recriar` para apagar e recriar a base em outro dia (bloqueado em produção). A API sobe em `http://localhost:3000/api`; os endpoints estão descritos em [`docs/api.md`](docs/api.md).
 
 **4. Rode o front-end**
@@ -141,6 +143,6 @@ Os testes e2e recriam o schema do banco `sigcf_test` a cada execução e se recu
 
 ## Escopo do MVP
 
-Fazem parte da entrega: cadastro de veículos, motoristas e clientes; criação e delegação de ordens de coleta; visão do motorista com as coletas do dia; atualização de status com histórico rastreável; registro da localização do motorista no momento em que ele inicia, conclui ou reporta falha em uma coleta; e uma tela de inteligência que identifica o padrão de pedidos de cada cliente, prevê a próxima coleta, acompanha a tendência de peso e alerta sobre coletas esperadas que ainda não foram pedidas, calculada no próprio sistema, sem APIs externas de IA.
+Fazem parte da entrega: cadastro de veículos, motoristas e clientes; criação e delegação de ordens de coleta; visão do motorista com as coletas do dia; atualização de status com histórico rastreável; registro da localização do motorista no momento em que ele inicia, conclui ou reporta falha em uma coleta; e uma tela de inteligência que identifica o padrão de pedidos de cada cliente, prevê a próxima coleta, acompanha a tendência de peso e alerta sobre coletas esperadas que ainda não foram pedidas, calculada no próprio sistema, sem APIs externas de IA; e avisos no celular do motorista, mesmo com o app fechado, quando ele recebe uma coleta nova ou tem uma coleta cancelada.
 
 Estão **fora do escopo** desta versão: rastreamento por GPS em tempo real, roteirização automática, módulos financeiros ou fiscais (NF-e/CT-e), integração com ERPs de terceiros e aplicativo mobile nativo.
