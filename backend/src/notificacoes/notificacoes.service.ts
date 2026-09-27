@@ -1,16 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import type { Aviso } from './avisos.js';
 import { InscricaoPushDto } from './dto/inscricao-push.dto.js';
 import { EnviadorPush } from './enviador-push.js';
 import { InscricaoPush } from './inscricao-push.entity.js';
-
-export interface Aviso {
-  titulo: string;
-  corpo: string;
-  url: string;
-  tag: string;
-}
 
 @Injectable()
 export class NotificacoesService {
