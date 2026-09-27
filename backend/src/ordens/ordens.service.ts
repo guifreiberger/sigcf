@@ -87,6 +87,7 @@ export class OrdensService {
           criadoPorId: gestor.id,
           enderecoColeta: dto.enderecoColeta ?? cliente.endereco,
           dataColeta: dto.dataColeta,
+          pesoEstimadoKg: dto.pesoEstimadoKg ?? null,
           status: StatusOrdem.AGUARDANDO,
           observacao: dto.observacao ?? null,
         }),

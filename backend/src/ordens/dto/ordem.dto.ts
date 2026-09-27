@@ -38,6 +38,12 @@ export class CriarOrdemDto {
   enderecoColeta?: string;
 
   @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'peso estimado inválido' })
+  @IsPositive({ message: 'peso estimado deve ser maior que zero' })
+  @Max(99_999_999, { message: 'peso estimado inválido' })
+  pesoEstimadoKg?: number;
+
+  @IsOptional()
   @IsString()
   @MaxLength(2000)
   observacao?: string;
