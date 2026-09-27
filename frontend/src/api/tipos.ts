@@ -83,6 +83,51 @@ export interface Ordem {
   transicoesPermitidas: StatusOrdem[]
 }
 
+export type TipoRecorrencia = 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'INTERVALO' | 'INSUFICIENTE'
+
+export type TendenciaPeso = 'ALTA' | 'QUEDA' | 'ESTAVEL' | 'INSUFICIENTE'
+
+export type TipoAlerta = 'ATRASADA' | 'PREVISTA'
+
+export interface AnaliseCliente {
+  clienteId: number
+  cliente: string
+  totalColetas: number
+  ultimaColeta: string | null
+  recorrencia: {
+    tipo: TipoRecorrencia
+    descricao: string
+    intervaloMedioDias: number | null
+    regularidade: number | null
+  }
+  proximaPrevista: string | null
+  proximaAgendada: string | null
+  alerta: TipoAlerta | null
+  peso: {
+    mediaKg: number | null
+    amostras: number
+    tendencia: TendenciaPeso
+    variacaoMensalPct: number | null
+    r2: number | null
+  }
+}
+
+export interface AlertaColeta {
+  clienteId: number
+  cliente: string
+  tipo: TipoAlerta
+  dataPrevista: string
+  dias: number
+  padrao: string
+}
+
+export interface Inteligencia {
+  hoje: string
+  janelaDias: number
+  alertas: AlertaColeta[]
+  clientes: AnaliseCliente[]
+}
+
 export interface Resumo {
   data: string
   total: number

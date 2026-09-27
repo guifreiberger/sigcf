@@ -658,6 +658,58 @@ a {
   border-bottom-color: var(--primaria);
 }
 
+/* Inteligência */
+
+.alertas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.alerta-coleta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 0.8rem 1rem;
+  border-left: 4px solid var(--cor);
+  border-radius: 8px;
+  background: var(--fundo-alerta);
+}
+
+.alerta-coleta > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.alerta-coleta small {
+  color: var(--texto-suave);
+}
+
+.alerta-coleta--atrasada { --cor: var(--perigo); --fundo-alerta: var(--perigo-fundo); }
+.alerta-coleta--prevista { --cor: #b45309; --fundo-alerta: var(--aviso-fundo); }
+
+.tendencia {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tendencia small {
+  font-weight: 400;
+}
+
+.tendencia--alta { color: var(--sucesso); }
+.tendencia--queda { color: var(--perigo); }
+.tendencia--estavel { color: var(--texto-suave); }
+
+.nota-metodo {
+  font-size: 0.85rem;
+  max-width: 900px;
+}
+
 /* Detalhe da ordem */
 
 .grade-detalhe {

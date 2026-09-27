@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/useAuth.ts'
 
 const LINKS = [
   { para: '/gestor', rotulo: 'Painel do dia', exato: true },
+  { para: '/gestor/inteligencia', rotulo: 'Inteligência' },
   { para: '/gestor/ordens', rotulo: 'Ordens de coleta' },
   { para: '/gestor/motoristas', rotulo: 'Motoristas' },
   { para: '/gestor/veiculos', rotulo: 'Veículos' },

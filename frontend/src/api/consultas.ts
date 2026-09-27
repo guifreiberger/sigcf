@@ -1,6 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, montarQuery } from './cliente.ts'
-import type { Cliente, Localizacao, Motorista, Ordem, Resumo, StatusOrdem, Veiculo } from './tipos.ts'
+import type {
+  Cliente,
+  Inteligencia,
+  Localizacao,
+  Motorista,
+  Ordem,
+  Resumo,
+  StatusOrdem,
+  Veiculo,
+} from './tipos.ts'
 
 export type Recurso = 'motoristas' | 'veiculos' | 'clientes'
 
@@ -82,9 +91,17 @@ export function useCriarOrdem() {
   return useMutation({
     mutationFn: (dados: object) => api<Ordem>('/ordens', { metodo: 'POST', corpo: dados }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ordens'] })
-      queryClient.invalidateQueries({ queryKey: ['resumo'] })
+      for (const chave of ['ordens', 'resumo', 'inteligencia']) {
+        queryClient.invalidateQueries({ queryKey: [chave] })
+      }
     },
+  })
+}
+
+export function useInteligencia() {
+  return useQuery({
+    queryKey: ['inteligencia'],
+    queryFn: () => api<Inteligencia>('/inteligencia/clientes'),
   })
 }
 
