@@ -134,12 +134,13 @@ Os testes e2e recriam o schema do banco `sigcf_test` a cada execução e se recu
 |---|---|
 | [`docs/der.md`](docs/der.md) | Modelo de dados, decisões de modelagem e máquina de estados da ordem |
 | [`docs/api.md`](docs/api.md) | Endpoints da API, perfis de acesso e códigos de erro |
+| [`docs/inteligencia.md`](docs/inteligencia.md) | Metodologia da tela de inteligência: recorrência, previsão, alertas e tendência de peso |
 | [`docs/desempenho.md`](docs/desempenho.md) | Medição do requisito de 300 ms e teste de volume com 200 mil ordens |
 | [`docs/validacao/`](docs/validacao) | Roteiro de entrevista, questionário e protocolo de teste de usabilidade (SUS) |
 | [`docs/tcc/atualizacoes-proposta.tex`](docs/tcc/atualizacoes-proposta.tex) | Texto em LaTeX com RFs e RNFs atualizados para a proposta |
 
 ## Escopo do MVP
 
-Fazem parte da entrega: cadastro de veículos, motoristas e clientes; criação e delegação de ordens de coleta; visão do motorista com as coletas do dia; atualização de status com histórico rastreável; e registro da localização do motorista no momento em que ele inicia, conclui ou reporta falha em uma coleta.
+Fazem parte da entrega: cadastro de veículos, motoristas e clientes; criação e delegação de ordens de coleta; visão do motorista com as coletas do dia; atualização de status com histórico rastreável; registro da localização do motorista no momento em que ele inicia, conclui ou reporta falha em uma coleta; e uma tela de inteligência que identifica o padrão de pedidos de cada cliente, prevê a próxima coleta, acompanha a tendência de peso e alerta sobre coletas esperadas que ainda não foram pedidas, calculada no próprio sistema, sem APIs externas de IA.
 
 Estão **fora do escopo** desta versão: rastreamento por GPS em tempo real, roteirização automática, módulos financeiros ou fiscais (NF-e/CT-e), integração com ERPs de terceiros e aplicativo mobile nativo.
