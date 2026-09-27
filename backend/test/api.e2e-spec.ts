@@ -6,6 +6,11 @@ import type { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { Cliente } from '../src/clientes/cliente.entity.js';
 import { hoje, somarDias } from '../src/common/data.js';
+import {
+  type DestinoPush,
+  EnviadorPush,
+} from '../src/notificacoes/enviador-push.js';
+import { InscricaoPush } from '../src/notificacoes/inscricao-push.entity.js';
 import { OrdemColeta } from '../src/ordens/ordem-coleta.entity.js';
 import { StatusOrdem } from '../src/ordens/status-ordem.enum.js';
 import { Perfil } from '../src/usuarios/perfil.enum.js';
@@ -19,6 +24,19 @@ const { AppModule } = await import('../src/app.module.js');
 const { configurarApp } = await import('../src/app.setup.js');
 
 type Quem = 'gestor' | 'joao' | 'maria';
+
+const enviados: {
+  endpoint: string;
+  aviso: { titulo: string; corpo: string; tag: string; url: string };
+}[] = [];
+const expirados = new Set<string>();
+const enviadorFalso: EnviadorPush = {
+  chavePublica: 'chave-publica-de-teste',
+  enviar: async (destino: DestinoPush, conteudo: string) => {
+    enviados.push({ endpoint: destino.endpoint, aviso: JSON.parse(conteudo) });
+    return expirados.has(destino.endpoint) ? 'EXPIRADO' : 'ENVIADO';
+  },
+};
 
 describe('API do SIGCF (e2e)', () => {
   let app: INestApplication<App>;
@@ -42,7 +60,10 @@ describe('API do SIGCF (e2e)', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(EnviadorPush)
+      .useValue(enviadorFalso)
+      .compile();
     app = configurarApp(moduleRef.createNestApplication());
     await app.init();
 
@@ -456,6 +477,105 @@ describe('API do SIGCF (e2e)', () => {
           dias: 1,
         }),
       );
+    });
+  });
+
+  describe('notificações push', () => {
+    const endpointJoao = 'https://fcm.googleapis.com/fcm/send/aparelho-joao';
+    const chaves = { p256dh: 'chave-p256dh-de-teste', auth: 'auth-de-teste' };
+    const inscrever = (quem: Quem, endpoint: string) =>
+      api()
+        .post('/api/notificacoes/inscricoes')
+        .set(como(quem))
+        .send({ endpoint, keys: chaves, expirationTime: null });
+    const inscricoesDe = (endpoint: string) =>
+      app.get(DataSource).getRepository(InscricaoPush).findBy({ endpoint });
+
+    beforeEach(() => {
+      enviados.length = 0;
+    });
+
+    it('entrega a chave pública ao app', async () => {
+      const res = await api()
+        .get('/api/notificacoes/chave-publica')
+        .set(como('joao'))
+        .expect(200);
+      expect(res.body).toEqual({ chavePublica: 'chave-publica-de-teste' });
+    });
+
+    it('só aceita endpoints de serviços de push conhecidos', () =>
+      inscrever('joao', 'https://servidor-interno.local/push').expect(400));
+
+    it('avisa o motorista quando ele recebe uma coleta nova', async () => {
+      await inscrever('joao', endpointJoao).expect(204);
+      await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send({ ...novaOrdem(), pesoEstimadoKg: 1200 })
+        .expect(201);
+
+      await vi.waitFor(() => expect(enviados).toHaveLength(1));
+      expect(enviados[0]).toMatchObject({
+        endpoint: endpointJoao,
+        aviso: { titulo: 'Nova coleta para você', url: '/motorista' },
+      });
+      expect(enviados[0].aviso.corpo).toContain(
+        'Cliente Teste, hoje · cerca de 1.200 kg',
+      );
+    });
+
+    it('avisa o motorista quando a coleta é cancelada', async () => {
+      const { body } = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+      await vi.waitFor(() => expect(enviados).toHaveLength(1));
+      enviados.length = 0;
+
+      await alterarStatus('gestor', body.id, {
+        status: 'CANCELADA',
+        motivo: 'Cliente desistiu',
+      }).expect(200);
+
+      await vi.waitFor(() => expect(enviados).toHaveLength(1));
+      expect(enviados[0].aviso).toMatchObject({
+        titulo: 'Coleta cancelada',
+        tag: `ordem-${body.id}`,
+      });
+      expect(enviados[0].aviso.corpo).toContain('Cliente desistiu');
+    });
+
+    it('transfere a inscrição quando outro usuário entra no mesmo aparelho', async () => {
+      await inscrever('maria', endpointJoao).expect(204);
+      const inscricoes = await inscricoesDe(endpointJoao);
+      expect(inscricoes).toHaveLength(1);
+      expect(inscricoes[0].usuarioId).toBe(ids.maria);
+    });
+
+    it('apaga inscrições que o serviço de push informa como expiradas', async () => {
+      const antigo = 'https://fcm.googleapis.com/fcm/send/aparelho-antigo';
+      await inscrever('joao', antigo).expect(204);
+      expirados.add(antigo);
+
+      await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+
+      await vi.waitFor(async () =>
+        expect(await inscricoesDe(antigo)).toHaveLength(0),
+      );
+    });
+
+    it('remove a inscrição quando o usuário desativa os avisos', async () => {
+      await api()
+        .delete('/api/notificacoes/inscricoes')
+        .set(como('maria'))
+        .send({ endpoint: endpointJoao })
+        .expect(204);
+      expect(await inscricoesDe(endpointJoao)).toHaveLength(0);
     });
   });
 });
