@@ -5,12 +5,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-
-// O driver do MySQL devolve DECIMAL como string para não perder precisão.
-const decimalParaNumero = {
-  to: (valor: number) => valor,
-  from: (valor: string) => Number(valor),
-};
+import { decimalParaNumero } from '../common/decimal.transformer.js';
 
 @Entity('veiculo')
 export class Veiculo {
