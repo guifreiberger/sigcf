@@ -140,6 +140,6 @@ Os testes e2e recriam o schema do banco `sigcf_test` a cada execução e se recu
 
 ## Escopo do MVP
 
-Fazem parte da entrega: cadastro de veículos, motoristas e clientes; criação e delegação de ordens de coleta; visão do motorista com as coletas do dia; e atualização de status com histórico rastreável.
+Fazem parte da entrega: cadastro de veículos, motoristas e clientes; criação e delegação de ordens de coleta; visão do motorista com as coletas do dia; atualização de status com histórico rastreável; e registro da localização do motorista no momento em que ele inicia, conclui ou reporta falha em uma coleta.
 
 Estão **fora do escopo** desta versão: rastreamento por GPS em tempo real, roteirização automática, módulos financeiros ou fiscais (NF-e/CT-e), integração com ERPs de terceiros e aplicativo mobile nativo.
