@@ -63,6 +63,9 @@ erDiagram
         enum status_anterior "nulo na criacao"
         enum status_novo
         varchar motivo
+        decimal latitude "nulo se nao informada"
+        decimal longitude "nulo se nao informada"
+        int precisao_metros
         datetime created_at
     }
 ```
@@ -76,6 +79,8 @@ erDiagram
 **`endereco_coleta` na ordem (snapshot).** O endereço é copiado do cliente no momento da criação e pode ser ajustado. Se o cliente mudar de endereço, as ordens antigas continuam registrando onde a coleta de fato ocorreu.
 
 **`historico_status` (trilha de auditoria).** Cada mudança de status grava quem alterou, quando, de qual status para qual e o motivo (obrigatório em falha e cancelamento). É o que sustenta a rastreabilidade prometida ao gestor.
+
+**Localização nas ações do motorista.** Quando o motorista inicia, conclui ou reporta falha em uma coleta, o registro de histórico guarda a latitude, a longitude e a precisão informada pelo GPS do celular. Não há rastreamento contínuo: a posição é capturada apenas nesses eventos e somente para ações do motorista, pelo princípio da necessidade da LGPD. Se a permissão for negada ou o GPS não responder, a ação é registrada sem coordenadas. As colunas usam `DECIMAL(9,6)`, precisão de cerca de 11 cm, suficiente para identificar o local do atendimento.
 
 **Índice composto `(motorista_id, data_coleta)`.** A consulta mais frequente do sistema é "coletas do motorista X no dia Y" (RF03). O índice mantém essa consulta dentro do requisito de 300 ms conforme o volume cresce.
 
