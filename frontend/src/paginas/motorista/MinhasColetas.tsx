@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAlterarStatus, useMinhasColetas } from '../../api/consultas.ts'
 import type { Ordem, StatusOrdem } from '../../api/tipos.ts'
 import { useAuth } from '../../auth/useAuth.ts'
@@ -13,6 +13,7 @@ import {
   hojeLocal,
   linkMapa,
 } from '../../util/formatos.ts'
+import { localizacaoBloqueada, obterLocalizacao } from '../../util/localizacao.ts'
 
 const PRIORIDADE: Record<StatusOrdem, number> = {
   EM_ANDAMENTO: 0,
@@ -37,6 +38,15 @@ export function MinhasColetas() {
   const coletas = useMinhasColetas(hoje)
   const alterar = useAlterarStatus()
   const [acao, setAcao] = useState<Acao>(null)
+  const [localizando, setLocalizando] = useState<number | null>(null)
+  const [semPermissao, setSemPermissao] = useState(false)
+
+  useEffect(() => {
+    localizacaoBloqueada().then(setSemPermissao)
+  }, [])
+
+  const enviando = localizando !== null || alterar.isPending
+  const rotuloEnvio = localizando !== null ? 'Obtendo localização…' : 'Enviando…'
 
   const ordenadas = [...(coletas.data ?? [])].sort(
     (a, b) => PRIORIDADE[a.status] - PRIORIDADE[b.status] || a.id - b.id,
@@ -48,8 +58,15 @@ export function MinhasColetas() {
     alterar.reset()
   }
 
-  function executar(ordem: Ordem, status: StatusOrdem, motivo?: string) {
-    alterar.mutate({ id: ordem.id, status, motivo }, { onSuccess: () => setAcao(null) })
+  async function executar(ordem: Ordem, status: StatusOrdem, motivo?: string) {
+    setLocalizando(ordem.id)
+    const localizacao = await obterLocalizacao()
+    setLocalizando(null)
+    if (!localizacao) localizacaoBloqueada().then(setSemPermissao)
+    alterar.mutate(
+      { id: ordem.id, status, motivo, localizacao: localizacao ?? undefined },
+      { onSuccess: () => setAcao(null) },
+    )
   }
 
   return (
@@ -82,6 +99,11 @@ export function MinhasColetas() {
           >
             {coletas.isFetching ? 'Atualizando…' : 'Atualizar'}
           </button>
+          <p className="motorista__aviso">
+            {semPermissao
+              ? 'A localização está bloqueada no navegador. As coletas funcionam normalmente, mas sem o registro do local.'
+              : 'Sua localização é registrada somente quando você inicia, conclui ou reporta falha em uma coleta.'}
+          </p>
         </section>
 
         <MensagemErro erro={coletas.error} />
@@ -97,7 +119,8 @@ export function MinhasColetas() {
               <li key={ordem.id}>
                 <CartaoColeta
                   ordem={ordem}
-                  ocupado={alterar.isPending && alterar.variables?.id === ordem.id}
+                  ocupado={localizando === ordem.id || (alterar.isPending && alterar.variables?.id === ordem.id)}
+                  rotuloOcupado={rotuloEnvio}
                   aoIniciar={() => executar(ordem, 'EM_ANDAMENTO')}
                   aoConcluir={() => setAcao({ ordem, status: 'CONCLUIDA' })}
                   aoFalhar={() => setAcao({ ordem, status: 'FALHA' })}
@@ -123,10 +146,10 @@ export function MinhasColetas() {
               <button
                 type="button"
                 className="botao botao--sucesso"
-                disabled={alterar.isPending}
+                disabled={enviando}
                 onClick={() => executar(acao.ordem, 'CONCLUIDA')}
               >
-                {alterar.isPending ? 'Enviando…' : 'Confirmar conclusão'}
+                {enviando ? rotuloEnvio : 'Confirmar conclusão'}
               </button>
             </footer>
           </div>
@@ -139,7 +162,7 @@ export function MinhasColetas() {
         descricao={`O que impediu a coleta em ${acao?.ordem.cliente.nome ?? ''}? O gestor verá este motivo.`}
         rotuloConfirmar="Reportar falha"
         sugestoes={MOTIVOS_FALHA}
-        enviando={alterar.isPending}
+        enviando={enviando}
         erro={alterar.error}
         aoFechar={fecharAcao}
         aoConfirmar={(motivo) => acao && executar(acao.ordem, 'FALHA', motivo)}
@@ -151,12 +174,13 @@ export function MinhasColetas() {
 interface PropsCartao {
   ordem: Ordem
   ocupado: boolean
+  rotuloOcupado: string
   aoIniciar: () => void
   aoConcluir: () => void
   aoFalhar: () => void
 }
 
-function CartaoColeta({ ordem, ocupado, aoIniciar, aoConcluir, aoFalhar }: PropsCartao) {
+function CartaoColeta({ ordem, ocupado, rotuloOcupado, aoIniciar, aoConcluir, aoFalhar }: PropsCartao) {
   const pode = (status: StatusOrdem) => ordem.transicoesPermitidas.includes(status)
   const finalizada = ordem.transicoesPermitidas.length === 0
 
@@ -190,7 +214,7 @@ function CartaoColeta({ ordem, ocupado, aoIniciar, aoConcluir, aoFalhar }: Props
         <footer className="coleta__acoes">
           {pode('EM_ANDAMENTO') && (
             <button type="button" className="botao botao--primario botao--grande" onClick={aoIniciar} disabled={ocupado}>
-              {ocupado ? 'Enviando…' : 'Iniciar coleta'}
+              {ocupado ? rotuloOcupado : 'Iniciar coleta'}
             </button>
           )}
           {pode('CONCLUIDA') && (

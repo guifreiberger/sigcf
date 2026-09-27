@@ -45,11 +45,20 @@ export interface Cliente {
   ativo: boolean
 }
 
+export interface Localizacao {
+  latitude: number
+  longitude: number
+  precisaoMetros?: number
+}
+
 export interface Historico {
   id: number
   statusAnterior: StatusOrdem | null
   statusNovo: StatusOrdem
   motivo: string | null
+  latitude: number | null
+  longitude: number | null
+  precisaoMetros: number | null
   createdAt: string
   usuario: { id: number; nome: string; perfil: Perfil }
 }

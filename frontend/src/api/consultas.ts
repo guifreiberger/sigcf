@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, montarQuery } from './cliente.ts'
-import type { Cliente, Motorista, Ordem, Resumo, StatusOrdem, Veiculo } from './tipos.ts'
+import type { Cliente, Localizacao, Motorista, Ordem, Resumo, StatusOrdem, Veiculo } from './tipos.ts'
 
 export type Recurso = 'motoristas' | 'veiculos' | 'clientes'
 
@@ -91,8 +91,17 @@ export function useCriarOrdem() {
 export function useAlterarStatus() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, status, motivo }: { id: number; status: StatusOrdem; motivo?: string }) =>
-      api<Ordem>(`/ordens/${id}/status`, { metodo: 'PATCH', corpo: { status, motivo } }),
+    mutationFn: ({
+      id,
+      status,
+      motivo,
+      localizacao,
+    }: {
+      id: number
+      status: StatusOrdem
+      motivo?: string
+      localizacao?: Localizacao
+    }) => api<Ordem>(`/ordens/${id}/status`, { metodo: 'PATCH', corpo: { status, motivo, localizacao } }),
     onSuccess: (ordem) => {
       queryClient.setQueryData(['ordem', ordem.id], ordem)
       for (const chave of ['ordens', 'resumo', 'minhas']) {
