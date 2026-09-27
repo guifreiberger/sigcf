@@ -61,5 +61,14 @@ services:
     ports:
       - "${APP_PORT:-8000}:80"
 
+  # Link HTTPS público temporário: docker compose --profile app --profile tunel up -d --build
+  tunel:
+    profiles: [tunel]
+    image: cloudflare/cloudflared:latest
+    container_name: sigcf-tunel
+    command: tunnel --no-autoupdate --url http://frontend:80
+    depends_on:
+      - frontend
+
 volumes:
   mysql_data:
