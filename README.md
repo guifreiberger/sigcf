@@ -101,6 +101,23 @@ docker compose exec backend node dist/database/seed.js
 
 A aplicação fica disponível em `http://localhost:8000`. O nginx serve o frontend e encaminha `/api` para o backend, que não fica exposto diretamente. Antes de qualquer deploy real, troque o `JWT_SECRET` e as senhas do `.env`.
 
+### Testar no celular (link HTTPS temporário)
+
+Para abrir o sistema em qualquer celular, mesmo fora da sua rede, suba os containers junto com o túnel do Cloudflare:
+
+```bash
+docker compose --profile app --profile tunel up -d --build
+docker logs sigcf-tunel
+```
+
+Nos logs aparece um endereço `https://….trycloudflare.com`: abra-o no celular. Por ser HTTPS, o navegador oferece a opção de instalar o SIGCF na tela inicial (PWA). O endereço muda sempre que o túnel é reiniciado e para de funcionar quando ele é desligado com `docker stop sigcf-tunel`.
+
+Enquanto o túnel estiver ligado, o sistema fica acessível pela internet. Antes de ligá-lo, troque `JWT_SECRET` e `SEED_SENHA` no `.env` (nunca no `.env.example`, que é público) e recrie os usuários com a nova senha:
+
+```bash
+docker compose exec -e NODE_ENV=development backend node dist/database/seed.js --recriar
+```
+
 ## Testes
 
 ```bash
