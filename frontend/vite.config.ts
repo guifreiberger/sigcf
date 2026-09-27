@@ -31,6 +31,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallbackDenylist: [/^\/api/],
+        importScripts: ['sw-push.js'],
       },
     }),
   ],
