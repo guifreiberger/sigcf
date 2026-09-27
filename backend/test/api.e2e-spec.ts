@@ -341,4 +341,55 @@ describe('API do SIGCF (e2e)', () => {
       });
     });
   });
+
+  describe('localização nas ações do motorista', () => {
+    let ordem: number;
+    const noCliente = {
+      latitude: -26.304408,
+      longitude: -48.848721,
+      precisaoMetros: 12.4,
+    };
+
+    beforeAll(async () => {
+      const res = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+      ordem = res.body.id;
+    });
+
+    it('recusa coordenadas inválidas', () =>
+      alterarStatus('joao', ordem, {
+        status: 'EM_ANDAMENTO',
+        localizacao: { latitude: 120, longitude: 10 },
+      }).expect(400));
+
+    it('grava a localização enviada pelo motorista', async () => {
+      const res = await alterarStatus('joao', ordem, {
+        status: 'EM_ANDAMENTO',
+        localizacao: noCliente,
+      }).expect(200);
+      expect(res.body.historico.at(-1)).toMatchObject({
+        statusNovo: 'EM_ANDAMENTO',
+        latitude: -26.304408,
+        longitude: -48.848721,
+        precisaoMetros: 12,
+      });
+    });
+
+    it('descarta a localização enviada em ações do gestor', async () => {
+      const res = await alterarStatus('gestor', ordem, {
+        status: 'CANCELADA',
+        motivo: 'Teste de privacidade',
+        localizacao: noCliente,
+      }).expect(200);
+      expect(res.body.historico.at(-1)).toMatchObject({
+        statusNovo: 'CANCELADA',
+        latitude: null,
+        longitude: null,
+        precisaoMetros: null,
+      });
+    });
+  });
 });
