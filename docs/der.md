@@ -8,6 +8,7 @@ erDiagram
     VEICULO ||--o{ ORDEM_COLETA : "atende"
     ORDEM_COLETA ||--o{ HISTORICO_STATUS : "registra"
     USUARIO ||--o{ HISTORICO_STATUS : "efetua"
+    USUARIO ||--o{ INSCRICAO_PUSH : "recebe avisos em"
 
     USUARIO {
         int id PK
@@ -69,6 +70,15 @@ erDiagram
         int precisao_metros
         datetime created_at
     }
+
+    INSCRICAO_PUSH {
+        int id PK
+        int usuario_id FK
+        varchar endpoint UK
+        varchar p256dh
+        varchar auth
+        datetime created_at
+    }
 ```
 
 ## Decisões de modelagem
@@ -84,6 +94,8 @@ erDiagram
 **Peso estimado na ordem.** O atendente registra o peso que o cliente informa ao pedir a coleta. O campo é opcional para não bloquear pedidos em que o cliente não sabe estimar, e alimenta a análise de peso médio e tendência da tela de Inteligência.
 
 **Localização nas ações do motorista.** Quando o motorista inicia, conclui ou reporta falha em uma coleta, o registro de histórico guarda a latitude, a longitude e a precisão informada pelo GPS do celular. Não há rastreamento contínuo: a posição é capturada apenas nesses eventos e somente para ações do motorista, pelo princípio da necessidade da LGPD. Se a permissão for negada ou o GPS não responder, a ação é registrada sem coordenadas. As colunas usam `DECIMAL(9,6)`, precisão de cerca de 11 cm, suficiente para identificar o local do atendimento.
+
+**Inscrições de notificação.** Cada aparelho que ativa os avisos gera um endereço único no serviço de push do navegador (`endpoint`) e as chaves públicas usadas para criptografar a mensagem (`p256dh` e `auth`). Um usuário pode ter vários aparelhos, mas cada endereço pertence a um único usuário. A exclusão do usuário apaga suas inscrições (`ON DELETE CASCADE`).
 
 **Índice composto `(motorista_id, data_coleta)`.** A consulta mais frequente do sistema é "coletas do motorista X no dia Y" (RF03). O índice mantém essa consulta dentro do requisito de 300 ms conforme o volume cresce.
 

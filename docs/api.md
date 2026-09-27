@@ -53,6 +53,18 @@ O campo opcional `localizacao` tem o formato `{ latitude, longitude, precisaoMet
 
 A resposta traz `alertas` (ordenados do mais atrasado para o mais próximo) e `clientes`, com `recorrencia`, `proximaPrevista`, `proximaAgendada` e `peso`. As regras de cálculo estão em [`inteligencia.md`](inteligencia.md).
 
+## Notificações push
+
+| Método | Rota | Perfil | Descrição |
+|---|---|---|---|
+| GET | `/notificacoes/chave-publica` | qualquer | Chave pública VAPID usada pelo navegador para criar a inscrição (`null` se as chaves não estiverem configuradas) |
+| POST | `/notificacoes/inscricoes` | qualquer | Registra o aparelho do usuário: `{ endpoint, keys: { p256dh, auth } }`, no formato de `PushSubscription.toJSON()`. Responde 204 |
+| DELETE | `/notificacoes/inscricoes` | qualquer | Remove a inscrição do aparelho: `{ endpoint }`. Responde 204 |
+
+Só são aceitos endpoints HTTPS dos serviços de push dos navegadores (Google, Mozilla, Apple e Microsoft), o que impede o servidor de ser usado para enviar requisições a endereços arbitrários. Se o mesmo aparelho for inscrito por outro usuário, a inscrição passa a pertencer a ele.
+
+O motorista recebe um aviso quando uma coleta é atribuída a ele e quando uma coleta dele é cancelada. O envio ocorre em segundo plano e não interfere na resposta da API. Inscrições que o serviço de push informa como expiradas (HTTP 404 ou 410) são apagadas automaticamente.
+
 ## Códigos de erro
 
 | Código | Quando |
