@@ -7,6 +7,7 @@ import { opcoesTypeOrm } from './database/typeorm.config.js';
 import { HealthController } from './health.controller.js';
 import { InteligenciaModule } from './inteligencia/inteligencia.module.js';
 import { MotoristasModule } from './motoristas/motoristas.module.js';
+import { NotificacoesModule } from './notificacoes/notificacoes.module.js';
 import { OrdensModule } from './ordens/ordens.module.js';
 import { VeiculosModule } from './veiculos/veiculos.module.js';
 
@@ -22,6 +23,7 @@ import { VeiculosModule } from './veiculos/veiculos.module.js';
     ClientesModule,
     OrdensModule,
     InteligenciaModule,
+    NotificacoesModule,
   ],
   controllers: [HealthController],
 })

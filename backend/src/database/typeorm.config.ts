@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import type { DataSourceOptions } from 'typeorm';
 import { Cliente } from '../clientes/cliente.entity.js';
+import { InscricaoPush } from '../notificacoes/inscricao-push.entity.js';
 import { HistoricoStatus } from '../ordens/historico-status.entity.js';
 import { OrdemColeta } from '../ordens/ordem-coleta.entity.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
@@ -18,7 +19,14 @@ export function opcoesTypeOrm(): DataSourceOptions {
     timezone: 'Z',
     // Sem isso o driver converte DATE em Date à meia-noite UTC e o dia recua no fuso -03:00.
     dateStrings: ['DATE'],
-    entities: [Usuario, Veiculo, Cliente, OrdemColeta, HistoricoStatus],
+    entities: [
+      Usuario,
+      Veiculo,
+      Cliente,
+      OrdemColeta,
+      HistoricoStatus,
+      InscricaoPush,
+    ],
     migrations: [join(import.meta.dirname, 'migrations', '*.js')],
     synchronize: false,
   };
