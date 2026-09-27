@@ -32,7 +32,7 @@ Campos de criação:
 
 | Método | Rota | Perfil | Descrição |
 |---|---|---|---|
-| POST | `/ordens` | gestor | Cria ordem: `clienteId`, `veiculoId`, `motoristaId`, `dataColeta` (AAAA-MM-DD), `enderecoColeta?`, `observacao?` |
+| POST | `/ordens` | gestor | Cria ordem: `clienteId`, `veiculoId`, `motoristaId`, `dataColeta` (AAAA-MM-DD), `enderecoColeta?`, `pesoEstimadoKg?`, `observacao?` |
 | GET | `/ordens?data=&status=&motoristaId=&clienteId=` | gestor | Lista com filtros (máx. 200, mais recentes primeiro) |
 | GET | `/ordens/resumo?data=` | gestor | Contagem por status do dia (padrão: hoje) |
 | GET | `/ordens/minhas?data=` | motorista | Coletas do próprio motorista no dia (padrão: hoje) |
@@ -44,6 +44,14 @@ Toda ordem retornada traz `transicoesPermitidas`: os status para os quais o usu�
 ### Localização nas ações do motorista
 
 O campo opcional `localizacao` tem o formato `{ latitude, longitude, precisaoMetros? }`, com latitude entre -90 e 90 e longitude entre -180 e 180. Ela é gravada no registro do histórico criado pela mudança de status, e somente quando a ação é do motorista responsável. Uma localização enviada em ações do gestor é descartada. Sem o campo, a mudança de status é registrada normalmente, com as coordenadas nulas.
+
+## Inteligência
+
+| Método | Rota | Perfil | Descrição |
+|---|---|---|---|
+| GET | `/inteligencia/clientes` | gestor | Padrão de recorrência, próxima coleta, peso médio e tendência de cada cliente ativo, além dos alertas de coleta esperada |
+
+A resposta traz `alertas` (ordenados do mais atrasado para o mais próximo) e `clientes`, com `recorrencia`, `proximaPrevista`, `proximaAgendada` e `peso`. As regras de cálculo estão em [`inteligencia.md`](inteligencia.md).
 
 ## Códigos de erro
 

@@ -50,6 +50,7 @@ erDiagram
         int criado_por_id FK
         varchar endereco_coleta
         date data_coleta
+        decimal peso_estimado_kg "opcional"
         enum status "AGUARDANDO | EM_ANDAMENTO | CONCLUIDA | FALHA | CANCELADA"
         text observacao
         datetime created_at
@@ -79,6 +80,8 @@ erDiagram
 **`endereco_coleta` na ordem (snapshot).** O endereço é copiado do cliente no momento da criação e pode ser ajustado. Se o cliente mudar de endereço, as ordens antigas continuam registrando onde a coleta de fato ocorreu.
 
 **`historico_status` (trilha de auditoria).** Cada mudança de status grava quem alterou, quando, de qual status para qual e o motivo (obrigatório em falha e cancelamento). É o que sustenta a rastreabilidade prometida ao gestor.
+
+**Peso estimado na ordem.** O atendente registra o peso que o cliente informa ao pedir a coleta. O campo é opcional para não bloquear pedidos em que o cliente não sabe estimar, e alimenta a análise de peso médio e tendência da tela de Inteligência.
 
 **Localização nas ações do motorista.** Quando o motorista inicia, conclui ou reporta falha em uma coleta, o registro de histórico guarda a latitude, a longitude e a precisão informada pelo GPS do celular. Não há rastreamento contínuo: a posição é capturada apenas nesses eventos e somente para ações do motorista, pelo princípio da necessidade da LGPD. Se a permissão for negada ou o GPS não responder, a ação é registrada sem coordenadas. As colunas usam `DECIMAL(9,6)`, precisão de cerca de 11 cm, suficiente para identificar o local do atendimento.
 
