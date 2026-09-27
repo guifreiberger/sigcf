@@ -5,7 +5,9 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { Cliente } from '../src/clientes/cliente.entity.js';
-import { hoje } from '../src/common/data.js';
+import { hoje, somarDias } from '../src/common/data.js';
+import { OrdemColeta } from '../src/ordens/ordem-coleta.entity.js';
+import { StatusOrdem } from '../src/ordens/status-ordem.enum.js';
 import { Perfil } from '../src/usuarios/perfil.enum.js';
 import { Usuario } from '../src/usuarios/usuario.entity.js';
 import { Veiculo } from '../src/veiculos/veiculo.entity.js';
@@ -390,6 +392,70 @@ describe('API do SIGCF (e2e)', () => {
         longitude: null,
         precisaoMetros: null,
       });
+    });
+  });
+
+  describe('inteligência para o gestor', () => {
+    it('registra o peso estimado informado na criação da ordem', async () => {
+      const res = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send({ ...novaOrdem(), pesoEstimadoKg: 1250.5 })
+        .expect(201);
+      expect(res.body.pesoEstimadoKg).toBe(1250.5);
+
+      await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send({ ...novaOrdem(), pesoEstimadoKg: -3 })
+        .expect(400);
+    });
+
+    it('restringe a análise ao gestor', () =>
+      api().get('/api/inteligencia/clientes').set(como('joao')).expect(403));
+
+    it('identifica o padrão semanal, a tendência de peso e alerta a próxima coleta', async () => {
+      const ds = app.get(DataSource);
+      const cliente = await ds
+        .getRepository(Cliente)
+        .save({ nome: 'Cliente Semanal', endereco: 'Rua Semanal, 7' });
+      const gestor = await ds
+        .getRepository(Usuario)
+        .findOneByOrFail({ email: 'gestor@e2e.local' });
+      await ds.getRepository(OrdemColeta).save(
+        [34, 27, 20, 13, 6].map((diasAtras, i) => ({
+          clienteId: cliente.id,
+          veiculoId: ids.veiculo,
+          motoristaId: ids.joao,
+          criadoPorId: gestor.id,
+          enderecoColeta: cliente.endereco,
+          dataColeta: somarDias(hoje(), -diasAtras),
+          pesoEstimadoKg: 100 + i * 20,
+          status: StatusOrdem.CONCLUIDA,
+        })),
+      );
+
+      const res = await api()
+        .get('/api/inteligencia/clientes')
+        .set(como('gestor'))
+        .expect(200);
+      const analise = res.body.clientes.find(
+        (c: { cliente: string }) => c.cliente === 'Cliente Semanal',
+      );
+      expect(analise).toMatchObject({
+        totalColetas: 5,
+        recorrencia: { tipo: 'SEMANAL', regularidade: 1 },
+        proximaPrevista: somarDias(hoje(), 1),
+        proximaAgendada: null,
+        peso: { mediaKg: 140, tendencia: 'ALTA' },
+      });
+      expect(res.body.alertas).toContainEqual(
+        expect.objectContaining({
+          cliente: 'Cliente Semanal',
+          tipo: 'PREVISTA',
+          dias: 1,
+        }),
+      );
     });
   });
 });
