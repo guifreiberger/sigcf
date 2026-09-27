@@ -14,6 +14,8 @@
   \item \textbf{RF05 -- Rastreabilidade:} registrar cada mudança de status de uma ordem de coleta com data, hora, usuário responsável, status anterior, novo status e motivo, sendo o motivo obrigatório nas transições para Falha e Cancelada.
   \item \textbf{RF06 -- Painel do dia:} apresentar ao gestor a quantidade de coletas do dia por status, atualizada automaticamente, e a lista das coletas com seus responsáveis.
   \item \textbf{RF07 -- Localização nas ações do motorista:} registrar a localização do motorista (latitude, longitude e precisão) no momento em que ele inicia, conclui ou reporta falha em uma coleta, exibindo-a ao gestor no histórico da ordem. O registro depende da permissão do dispositivo e, na sua ausência, a ação é concluída sem a localização.
+  \item \textbf{RF08 -- Peso estimado:} permitir que o atendente registre, ao criar a ordem, o peso estimado informado pelo cliente, exibindo-o ao motorista e no histórico.
+  \item \textbf{RF09 -- Inteligência para o gestor:} identificar, a partir do histórico dos últimos 12 meses, o padrão de recorrência de cada cliente, a data prevista da próxima coleta, o peso médio e a tendência de peso, e alertar o atendente sobre coletas esperadas que ainda não foram solicitadas.
 \end{itemize}
 
 % ---------------------------------------------------------------------
@@ -38,6 +40,8 @@
 A adoção de TypeScript tanto no \textit{front-end} quanto no \textit{back-end} permite que uma única linguagem seja utilizada em toda a aplicação, reduzindo o custo cognitivo de manutenção em um projeto desenvolvido individualmente. No \textit{back-end}, o NestJS foi escolhido por impor nativamente a separação em camadas e a injeção de dependências, o que torna a arquitetura \textit{Controller}--\textit{Service}--\textit{Repository} parte da estrutura do próprio \textit{framework}, e não apenas uma convenção do desenvolvedor.
 
 Para o motorista, optou-se por uma aplicação web progressiva em vez de um aplicativo nativo. As funcionalidades exigidas em campo (consultar as coletas do dia, atualizar seu status e registrar a localização do atendimento) não dependem de recursos exclusivos de plataformas nativas, uma vez que a localização é obtida pela API de Geolocalização disponível nos navegadores, e o acesso por meio de um endereço web elimina a etapa de instalação por lojas de aplicativos. Essa característica é relevante tanto para a adoção quanto para a validação empírica, pois o sistema pode ser disponibilizado aos participantes pelo mesmo canal que se pretende substituir.
+
+A análise que dá nome ao sistema (RF09) é executada integralmente no \textit{back-end}, sem o uso de APIs externas de inteligência artificial. O padrão de recorrência é identificado a partir do intervalo médio entre as coletas e da frequência do dia da semana ou do mês, e a tendência de peso é estimada por regressão linear pelo método dos mínimos quadrados, considerada significativa apenas quando o coeficiente de determinação ($R^2$) é de pelo menos 0,3. Essa abordagem mantém os dados dos clientes dentro do sistema, produz resultados determinísticos e permite explicar ao gestor a origem de cada indicador exibido.
 
 % ---------------------------------------------------------------------
 % 4. Metodologia — ajuste no plano de validação
