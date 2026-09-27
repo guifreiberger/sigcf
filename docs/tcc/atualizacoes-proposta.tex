@@ -16,6 +16,7 @@
   \item \textbf{RF07 -- Localização nas ações do motorista:} registrar a localização do motorista (latitude, longitude e precisão) no momento em que ele inicia, conclui ou reporta falha em uma coleta, exibindo-a ao gestor no histórico da ordem. O registro depende da permissão do dispositivo e, na sua ausência, a ação é concluída sem a localização.
   \item \textbf{RF08 -- Peso estimado:} permitir que o atendente registre, ao criar a ordem, o peso estimado informado pelo cliente, exibindo-o ao motorista e no histórico.
   \item \textbf{RF09 -- Inteligência para o gestor:} identificar, a partir do histórico dos últimos 12 meses, o padrão de recorrência de cada cliente, a data prevista da próxima coleta, o peso médio e a tendência de peso, e alertar o atendente sobre coletas esperadas que ainda não foram solicitadas.
+  \item \textbf{RF10 -- Aviso de coleta no celular:} notificar o motorista no celular, mesmo com a aplicação fechada, quando uma coleta for atribuída a ele ou quando uma coleta sua for cancelada. A ativação dos avisos é opcional e pode ser desfeita pelo próprio motorista.
 \end{itemize}
 
 % ---------------------------------------------------------------------
@@ -42,6 +43,8 @@ A adoção de TypeScript tanto no \textit{front-end} quanto no \textit{back-end}
 Para o motorista, optou-se por uma aplicação web progressiva em vez de um aplicativo nativo. As funcionalidades exigidas em campo (consultar as coletas do dia, atualizar seu status e registrar a localização do atendimento) não dependem de recursos exclusivos de plataformas nativas, uma vez que a localização é obtida pela API de Geolocalização disponível nos navegadores, e o acesso por meio de um endereço web elimina a etapa de instalação por lojas de aplicativos. Essa característica é relevante tanto para a adoção quanto para a validação empírica, pois o sistema pode ser disponibilizado aos participantes pelo mesmo canal que se pretende substituir.
 
 A análise que dá nome ao sistema (RF09) é executada integralmente no \textit{back-end}, sem o uso de APIs externas de inteligência artificial. O padrão de recorrência é identificado a partir do intervalo médio entre as coletas e da frequência do dia da semana ou do mês, e a tendência de peso é estimada por regressão linear pelo método dos mínimos quadrados, considerada significativa apenas quando o coeficiente de determinação ($R^2$) é de pelo menos 0,3. Essa abordagem mantém os dados dos clientes dentro do sistema, produz resultados determinísticos e permite explicar ao gestor a origem de cada indicador exibido.
+
+Os avisos ao motorista (RF10) substituem a notificação que hoje ele recebe pelo grupo de mensagens. Foram implementados com o padrão aberto Web Push, especificado pela IETF nas RFCs 8030, 8291 e 8292, e suportado nativamente pelos navegadores. O servidor gera o próprio par de chaves VAPID para se identificar, sem cadastro ou chave de acesso em serviços de terceiros, e o conteúdo de cada aviso é criptografado de ponta a ponta até o aparelho. A entrega passa pelo serviço de push do navegador do usuário, como ocorre em qualquer aplicação web que envia notificações.
 
 % ---------------------------------------------------------------------
 % 4. Metodologia — ajuste no plano de validação
