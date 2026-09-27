@@ -15,6 +15,7 @@ import {
   linkMapa,
 } from '../../util/formatos.ts'
 import { localizacaoBloqueada, obterLocalizacao } from '../../util/localizacao.ts'
+import { AvisosColetas } from './AvisosColetas.tsx'
 
 const PRIORIDADE: Record<StatusOrdem, number> = {
   EM_ANDAMENTO: 0,
@@ -106,6 +107,8 @@ export function MinhasColetas() {
               : 'Sua localização é registrada somente quando você inicia, conclui ou reporta falha em uma coleta.'}
           </p>
         </section>
+
+        <AvisosColetas />
 
         <MensagemErro erro={coletas.error} />
         {!acao && <MensagemErro erro={alterar.error} />}

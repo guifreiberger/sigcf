@@ -867,6 +867,26 @@ a {
   font-size: 0.85rem;
 }
 
+.avisos {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  background: var(--primaria-clara);
+  border-radius: var(--raio);
+  color: var(--primaria-escura);
+}
+
+.avisos--ativo {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 0.5rem 0.75rem 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.avisos--ativo .alerta {
+  grid-column: 1 / -1;
+}
+
 .coletas {
   list-style: none;
   margin: 0;
