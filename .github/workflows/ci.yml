@@ -7,10 +7,11 @@ on:
     branches: [develop, main]
   workflow_dispatch:
 
-# Um novo push na mesma branch cancela a execução anterior, que ficou desatualizada.
+# Em pull requests, um push novo cancela a execução desatualizada. Na develop e na main as
+# execuções entram na fila, para nunca interromper uma implantação no meio.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -125,3 +126,72 @@ jobs:
         # Fica desligada até o segredo SONAR_TOKEN ser cadastrado no repositório.
         if: env.SONAR_TOKEN != ''
         uses: SonarSource/sonarqube-scan-action@v8
+
+  implantacao:
+    name: Implantação
+    # develop → homologação; main → produção (que espera a aprovação do responsável).
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+    needs: [backend, frontend, imagens]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'producao' || 'homologacao' }}
+      url: ${{ steps.terraform.outputs.url }}
+    permissions:
+      contents: read
+      # Token OIDC trocado por acesso ao Azure: nenhuma senha do Azure fica guardada no GitHub.
+      id-token: write
+    env:
+      AMBIENTE: ${{ github.ref == 'refs/heads/main' && 'producao' || 'homologacao' }}
+      VERSAO: ${{ github.sha }}
+      REGISTRY: ${{ vars.AZURE_REGISTRY }}
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: true
+    steps:
+      - uses: actions/checkout@v7
+      - name: Login no Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Publica as imagens no registry
+        run: |
+          az acr login --name "${{ vars.AZURE_REGISTRY_NOME }}"
+          docker build -t "$REGISTRY/sigcf-api:$VERSAO" backend
+          docker build -t "$REGISTRY/sigcf-web:$VERSAO" frontend
+          docker push "$REGISTRY/sigcf-api:$VERSAO"
+          docker push "$REGISTRY/sigcf-web:$VERSAO"
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.16.6
+          terraform_wrapper: false
+      - name: Aplica a versão no ambiente
+        id: terraform
+        working-directory: infra/app
+        env:
+          TF_VAR_conta_estado: ${{ vars.TF_CONTA_ESTADO }}
+          TF_VAR_vapid_chave_publica: ${{ vars.VAPID_PUBLIC_KEY }}
+          TF_VAR_vapid_chave_privada: ${{ secrets.VAPID_PRIVATE_KEY }}
+          TF_VAR_vapid_contato: ${{ vars.VAPID_CONTATO }}
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=rg-sigcf-estado" \
+            -backend-config="storage_account_name=${{ vars.TF_CONTA_ESTADO }}" \
+            -backend-config="key=app-$AMBIENTE.tfstate"
+          terraform apply -input=false -auto-approve -var "ambiente=$AMBIENTE" -var "versao=$VERSAO"
+          echo "url=$(terraform output -raw url)" >> "$GITHUB_OUTPUT"
+      - name: Confere se a aplicação está no ar
+        # A homologação desliga sem acessos: a primeira requisição a acorda (e roda as migrations).
+        run: |
+          for tentativa in $(seq 1 30); do
+            if curl -fsS "${{ steps.terraform.outputs.url }}/api/health"; then
+              echo
+              echo "No ar: ${{ steps.terraform.outputs.url }}"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "A aplicação não respondeu ao health check." >&2
+          exit 1
