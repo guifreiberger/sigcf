@@ -3,6 +3,8 @@ import {
   formatarData,
   formatarDataExtenso,
   formatarDataHora,
+  formatarDistancia,
+  formatarDuracao,
   formatarHora,
   formatarKg,
   formatarPlaca,
@@ -11,6 +13,7 @@ import {
   iniciais,
   linkCoordenadas,
   linkMapa,
+  tempoDesde,
 } from './formatos.ts'
 
 describe('formatos', () => {
@@ -65,6 +68,34 @@ describe('formatos', () => {
 
   it('formatarKg usa separadores brasileiros', () => {
     expect(formatarKg(1250.5)).toBe('1.250,5 kg')
+  })
+
+  describe('trajeto', () => {
+    it.each([
+      [20, 'menos de 1 min'],
+      [42 * 60, '42 min'],
+      [65 * 60, '1 h 05 min'],
+      [3 * 3600 + 20 * 60 + 40, '3 h 21 min'],
+    ])('formatarDuracao(%i) é %j', (segundos, esperado) => {
+      expect(formatarDuracao(segundos)).toBe(esperado)
+    })
+
+    it.each([
+      [0, '0 m'],
+      [850.4, '850 m'],
+      [3420, '3,4 km'],
+      [12_000, '12 km'],
+    ])('formatarDistancia(%d) é %j', (metros, esperado) => {
+      expect(formatarDistancia(metros)).toBe(esperado)
+    })
+
+    it('tempoDesde diz há quanto tempo veio a última posição', () => {
+      const agora = Date.parse('2026-11-04T15:30:00Z')
+
+      expect(tempoDesde('2026-11-04T15:29:40Z', agora)).toBe('agora há pouco')
+      expect(tempoDesde('2026-11-04T15:22:00Z', agora)).toBe('há 8 min')
+      expect(tempoDesde('2026-11-04T14:00:00Z', agora)).toBe('há 1 h 30 min')
+    })
   })
 
   it('os links do mapa codificam o endereço e as coordenadas', () => {
