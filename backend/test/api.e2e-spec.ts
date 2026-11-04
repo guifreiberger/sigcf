@@ -1,8 +1,7 @@
-import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { hash } from 'bcryptjs';
 import request from 'supertest';
-import type { App } from 'supertest/types.js';
 import { DataSource } from 'typeorm';
 import { Cliente } from '../src/clientes/cliente.entity.js';
 import { hoje, somarDias } from '../src/common/data.js';
@@ -39,7 +38,7 @@ const enviadorFalso: EnviadorPush = {
 };
 
 describe('API do SIGCF (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: NestExpressApplication;
   const tokens = {} as Record<Quem, string>;
   const ids = {} as Record<
     'joao' | 'maria' | 'cliente' | 'veiculo' | 'veiculoInativo',
@@ -64,7 +63,9 @@ describe('API do SIGCF (e2e)', () => {
       .overrideProvider(EnviadorPush)
       .useValue(enviadorFalso)
       .compile();
-    app = configurarApp(moduleRef.createNestApplication());
+    app = configurarApp(
+      moduleRef.createNestApplication<NestExpressApplication>(),
+    );
     await app.init();
 
     const ds = app.get(DataSource);
