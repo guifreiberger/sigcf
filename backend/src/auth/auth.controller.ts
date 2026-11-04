@@ -1,7 +1,15 @@
-import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import { Publico, UsuarioAtual } from './decorators.js';
 import { LoginDto } from './dto/login.dto.js';
+import { LimiteDeLoginGuard } from './limite-de-login.guard.js';
 import type { UsuarioAutenticado } from './usuario-autenticado.js';
 
 @Controller('auth')
@@ -10,6 +18,7 @@ export class AuthController {
 
   @Post('login')
   @Publico()
+  @UseGuards(LimiteDeLoginGuard)
   @HttpCode(200)
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto.email, dto.senha);
