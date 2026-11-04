@@ -578,4 +578,119 @@ describe('API do SIGCF (e2e)', () => {
       expect(await inscricoesDe(endpointJoao)).toHaveLength(0);
     });
   });
+
+  describe('RF11 — trajeto da coleta', () => {
+    let ordem: number;
+    const enviarPontos = (quem: Quem, pontos: object[]) =>
+      api().post('/api/rastreamento/pontos').set(como(quem)).send({ pontos });
+    // Cada milésimo de grau de latitude equivale a cerca de 111 m.
+    const leitura = (
+      milesimos: number,
+      segundos: number,
+      precisaoMetros = 8,
+    ) => ({
+      latitude: -26.48 + milesimos / 1000,
+      longitude: -49.07,
+      precisaoMetros,
+      registradoEm: new Date(Date.now() + segundos * 1000).toISOString(),
+    });
+
+    beforeAll(async () => {
+      const res = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+      ordem = res.body.id;
+    });
+
+    it('só aceita pontos do motorista com coleta em andamento', async () => {
+      await enviarPontos('joao', [leitura(0, 0)]).expect(409);
+      await enviarPontos('gestor', [leitura(0, 0)]).expect(403);
+    });
+
+    it('valida as leituras recebidas', async () => {
+      await alterarStatus('joao', ordem, { status: 'EM_ANDAMENTO' }).expect(
+        200,
+      );
+      await enviarPontos('joao', []).expect(400);
+      await enviarPontos('joao', [{ ...leitura(0, 0), latitude: 95 }]).expect(
+        400,
+      );
+      await enviarPontos('joao', [
+        { ...leitura(0, 0), registradoEm: 'ontem' },
+      ]).expect(400);
+    });
+
+    it('mostra ao gestor a posição atual de quem está em rota', async () => {
+      await enviarPontos('joao', [
+        leitura(0, 0),
+        leitura(1, 15),
+        leitura(2, 30, 900),
+      ]).expect(204);
+
+      const res = await api()
+        .get('/api/rastreamento/em-rota')
+        .set(como('gestor'))
+        .expect(200);
+      expect(res.body).toEqual([
+        expect.objectContaining({
+          ordemId: ordem,
+          motorista: { id: ids.joao, nome: 'João' },
+          cliente: 'Cliente Teste',
+          ultimaPosicao: expect.objectContaining({
+            latitude: -26.479,
+            longitude: -49.07,
+            precisaoMetros: 8,
+          }),
+        }),
+      ]);
+    });
+
+    it('restringe o acompanhamento ao gestor', async () => {
+      await api()
+        .get('/api/rastreamento/em-rota')
+        .set(como('joao'))
+        .expect(403);
+      await api()
+        .get(`/api/rastreamento/ordens/${ordem}`)
+        .set(como('joao'))
+        .expect(403);
+    });
+
+    it('salva o trajeto e o tempo da corrida ao concluir', async () => {
+      await enviarPontos('joao', [leitura(4, 45)]).expect(204);
+      await alterarStatus('joao', ordem, { status: 'CONCLUIDA' }).expect(200);
+      await enviarPontos('joao', [leitura(9, 60)]).expect(409);
+
+      const res = await api()
+        .get(`/api/rastreamento/ordens/${ordem}`)
+        .set(como('gestor'))
+        .expect(200);
+      expect(res.body).toMatchObject({
+        ordemId: ordem,
+        status: 'CONCLUIDA',
+        distanciaMetros: 445,
+        ultimaPosicao: { latitude: -26.476, longitude: -49.07 },
+      });
+      expect(res.body.pontos).toHaveLength(3);
+      expect(res.body.inicio).not.toBeNull();
+      expect(res.body.fim).not.toBeNull();
+      expect(res.body.duracaoSegundos).toBeGreaterThanOrEqual(0);
+    });
+
+    it('tira do mapa a coleta concluída', async () => {
+      const res = await api()
+        .get('/api/rastreamento/em-rota')
+        .set(como('gestor'))
+        .expect(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it('responde 404 para ordem inexistente', () =>
+      api()
+        .get('/api/rastreamento/ordens/999999')
+        .set(como('gestor'))
+        .expect(404));
+  });
 });
