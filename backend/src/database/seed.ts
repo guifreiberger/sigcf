@@ -4,6 +4,7 @@ import { Cliente } from '../clientes/cliente.entity.js';
 import { hoje, somarDias } from '../common/data.js';
 import { HistoricoStatus } from '../ordens/historico-status.entity.js';
 import { OrdemColeta } from '../ordens/ordem-coleta.entity.js';
+import { PontoTrajeto } from '../rastreamento/ponto-trajeto.entity.js';
 import { StatusOrdem } from '../ordens/status-ordem.enum.js';
 import { Perfil } from '../usuarios/perfil.enum.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
@@ -45,6 +46,48 @@ function mesesAntes(data: string, meses: number, dia: number) {
     .slice(0, 10);
 }
 
+// Pátio fictício de onde os caminhões saem, no distrito industrial.
+const PATIO: [number, number] = [-26.4615, -49.115];
+const TRAJETOS_DOS_ULTIMOS_DIAS = 30;
+const INTERVALO_LEITURA_MS = 30_000;
+const DESLOCAMENTO_MS = 25 * 60_000;
+
+// Trajeto de demonstração (RF11): caminho em "L" do pátio até o cliente, como quem segue uma
+// avenida e depois entra na rua; o resto da corrida é o carregamento, parado no cliente.
+function simularTrajeto(
+  ordemId: number,
+  destino: [number, number],
+  inicio: Date,
+  fim: Date,
+  aleatorio: () => number,
+) {
+  const ruido = () => (aleatorio() - 0.5) * 0.00008;
+  const esquina: [number, number] = [PATIO[0], destino[1]];
+  const entre = (de: [number, number], ate: [number, number], f: number) =>
+    [de[0] + (ate[0] - de[0]) * f, de[1] + (ate[1] - de[1]) * f] as const;
+
+  const pontos = [];
+  for (
+    let t = 0;
+    t <= fim.getTime() - inicio.getTime();
+    t += INTERVALO_LEITURA_MS
+  ) {
+    const s = Math.min(1, t / DESLOCAMENTO_MS);
+    const [lat, lon] =
+      s < 0.5
+        ? entre(PATIO, esquina, s * 2)
+        : entre(esquina, destino, s * 2 - 1);
+    pontos.push({
+      ordemId,
+      latitude: Number((lat + ruido()).toFixed(6)),
+      longitude: Number((lon + ruido()).toFixed(6)),
+      precisaoMetros: 5 + Math.floor(aleatorio() * 15),
+      registradoEm: new Date(inicio.getTime() + t),
+    });
+  }
+  return pontos;
+}
+
 function trilha(status: StatusOrdem): StatusOrdem[] {
   if (status === CANCELADA) return [AGUARDANDO, CANCELADA];
   if (status === AGUARDANDO) return [AGUARDANDO];
@@ -60,6 +103,12 @@ async function registrar(
   aleatorio: () => number,
   diaAtual: string,
 ) {
+  // Gerador separado para não alterar os dados que a semente principal já produzia.
+  const gps = criarAleatorio(11);
+  const agora = new Date();
+  const minutosAtras = (minutos: number) =>
+    new Date(agora.getTime() - minutos * 60_000);
+
   for (const p of pedidos) {
     const passado = p.data < diaAtual;
     const hora = (h: number, m = 0) =>
@@ -83,16 +132,32 @@ async function registrar(
       dataColeta: p.data,
       pesoEstimadoKg: p.kg,
       status: p.status,
-      ...(passado ? { createdAt: criadaEm, updatedAt: hora(12, 40) } : {}),
+      ...(passado
+        ? { createdAt: criadaEm, updatedAt: hora(12, 40) }
+        : { createdAt: minutosAtras(180) }),
     });
 
     const etapas = trilha(p.status);
     const minutoInicio = Math.floor(aleatorio() * 180);
+    const momento = (i: number): Date | undefined => {
+      if (passado) {
+        const minutos = minutoInicio + (i - 1) * 45;
+        return i === 0
+          ? criadaEm
+          : hora(11 + Math.floor(minutos / 60), minutos % 60);
+      }
+      // Hoje: a corrida aconteceu (ou está acontecendo) pouco antes de rodar o seed.
+      if (i === 0) return minutosAtras(180);
+      if (etapas[i] === CANCELADA) return undefined;
+      if (p.status === EM_ANDAMENTO) return minutosAtras(20);
+      return minutosAtras(i === 1 ? 55 : 10);
+    };
+
     await em.insert(
       HistoricoStatus,
       etapas.map((status, i) => {
         const doMotorista = status !== AGUARDANDO && status !== CANCELADA;
-        const minutos = minutoInicio + (i - 1) * 45;
+        const criadoEm = momento(i);
         return {
           ordemId: ordem.id,
           usuarioId: doMotorista ? p.motorista.id : gestor.id,
@@ -111,17 +176,23 @@ async function registrar(
             ? Number((p.local[1] + (aleatorio() - 0.5) * 0.0006).toFixed(6))
             : null,
           precisaoMetros: doMotorista ? 6 + Math.floor(aleatorio() * 20) : null,
-          ...(passado
-            ? {
-                createdAt:
-                  i === 0
-                    ? criadaEm
-                    : hora(11 + Math.floor(minutos / 60), minutos % 60),
-              }
-            : {}),
+          ...(criadoEm ? { createdAt: criadoEm } : {}),
         };
       }),
     );
+
+    const inicio = etapas[1] === EM_ANDAMENTO ? momento(1) : undefined;
+    const fim = p.status === EM_ANDAMENTO ? agora : momento(2);
+    if (
+      inicio &&
+      fim &&
+      p.data >= somarDias(diaAtual, -TRAJETOS_DOS_ULTIMOS_DIAS)
+    ) {
+      await em.insert(
+        PontoTrajeto,
+        simularTrajeto(ordem.id, p.local, inicio, fim, gps),
+      );
+    }
   }
 }
 
@@ -322,7 +393,7 @@ async function executar() {
     }
     const total = await dataSource.transaction((em) => popular(em, senha));
     console.log(
-      `Seed concluído: 3 usuários, 3 veículos, 6 clientes e ${total} ordens com histórico de 12 meses.`,
+      `Seed concluído: 3 usuários, 3 veículos, 6 clientes e ${total} ordens com histórico de 12 meses e trajetos dos últimos ${TRAJETOS_DOS_ULTIMOS_DIAS} dias.`,
     );
   } finally {
     await dataSource.destroy();
