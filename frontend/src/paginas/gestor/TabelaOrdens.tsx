@@ -29,9 +29,11 @@ export function TabelaOrdens({ ordens, mostrarData = false }: { ordens: Ordem[];
                 </Link>
               </td>
               {mostrarData && <td>{formatarData(o.dataColeta)}</td>}
-              <td>
+              <td className="tabela__principal">
                 <strong>{o.cliente.nome}</strong>
-                <small className="texto-suave bloco">{o.enderecoColeta}</small>
+                <small className="texto-suave" title={o.enderecoColeta}>
+                  {o.enderecoColeta}
+                </small>
               </td>
               <td>{o.motorista?.nome}</td>
               <td>{formatarPlaca(o.veiculo.placa)}</td>
