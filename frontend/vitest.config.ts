@@ -11,7 +11,8 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/testes/**', 'src/main.tsx'],
-      reporter: ['text-summary', 'text', 'lcov', 'html'],
+      // lcov com caminhos a partir da raiz do repositório, como o SonarCloud espera.
+      reporter: ['text-summary', 'text', ['lcov', { projectRoot: '..' }]],
       // Meta do playbook para o frontend; abaixo disso o CI falha.
       thresholds: { statements: 25, branches: 25, functions: 25, lines: 25 },
     },
