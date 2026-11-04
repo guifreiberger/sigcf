@@ -8,7 +8,8 @@ server {
     gzip_types text/css application/javascript application/json image/svg+xml application/manifest+json;
 
     location /api/ {
-        proxy_pass http://backend:3000;
+        # Preenchido na subida do container: backend:3000 no Compose, localhost:3000 no Azure.
+        proxy_pass ${API_UPSTREAM};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
