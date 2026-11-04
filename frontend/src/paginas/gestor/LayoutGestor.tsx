@@ -1,13 +1,24 @@
+import {
+  Building2,
+  ClipboardList,
+  LayoutDashboard,
+  LogOut,
+  type LucideIcon,
+  Sparkles,
+  Truck,
+  Users,
+} from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuth } from '../../auth/useAuth.ts'
+import { iniciais } from '../../util/formatos.ts'
 
-const LINKS = [
-  { para: '/gestor', rotulo: 'Painel do dia', exato: true },
-  { para: '/gestor/inteligencia', rotulo: 'Inteligência' },
-  { para: '/gestor/ordens', rotulo: 'Ordens de coleta' },
-  { para: '/gestor/motoristas', rotulo: 'Motoristas' },
-  { para: '/gestor/veiculos', rotulo: 'Veículos' },
-  { para: '/gestor/clientes', rotulo: 'Clientes' },
+const LINKS: { para: string; rotulo: string; icone: LucideIcon; exato?: boolean }[] = [
+  { para: '/gestor', rotulo: 'Painel do dia', icone: LayoutDashboard, exato: true },
+  { para: '/gestor/inteligencia', rotulo: 'Inteligência', icone: Sparkles },
+  { para: '/gestor/ordens', rotulo: 'Ordens de coleta', icone: ClipboardList },
+  { para: '/gestor/motoristas', rotulo: 'Motoristas', icone: Users },
+  { para: '/gestor/veiculos', rotulo: 'Veículos', icone: Truck },
+  { para: '/gestor/clientes', rotulo: 'Clientes', icone: Building2 },
 ]
 
 export function LayoutGestor() {
@@ -16,21 +27,35 @@ export function LayoutGestor() {
   return (
     <div className="gestor">
       <aside className="gestor__menu">
-        <div className="gestor__marca">
-          <img src="/favicon.svg" alt="" width={32} height={32} />
-          <strong>SIGCF</strong>
+        <div className="marca gestor__marca">
+          <span className="marca__icone">
+            <Truck size={20} strokeWidth={2.25} aria-hidden />
+          </span>
+          <span className="marca__textos">
+            <strong className="marca__nome">SIGCF</strong>
+            <span className="marca__sub">Gestão de coleta e frota</span>
+          </span>
         </div>
+
         <nav className="gestor__nav" aria-label="Menu principal">
-          {LINKS.map((link) => (
-            <NavLink key={link.para} to={link.para} end={link.exato} className="gestor__link">
-              {link.rotulo}
+          {LINKS.map(({ para, rotulo, icone: Icone, exato }) => (
+            <NavLink key={para} to={para} end={exato} className="gestor__link">
+              <Icone size={18} aria-hidden />
+              {rotulo}
             </NavLink>
           ))}
         </nav>
+
         <div className="gestor__usuario">
-          <span title={usuario?.email}>{usuario?.nome}</span>
-          <button type="button" className="botao botao--fantasma" onClick={sair}>
-            Sair
+          <span className="avatar" aria-hidden>
+            {iniciais(usuario?.nome ?? '')}
+          </span>
+          <span className="gestor__usuario-info">
+            <strong title={usuario?.email}>{usuario?.nome}</strong>
+            <small>Gestor</small>
+          </span>
+          <button type="button" className="botao-icone botao-icone--claro" onClick={sair} aria-label="Sair" title="Sair">
+            <LogOut size={18} aria-hidden />
           </button>
         </div>
       </aside>
