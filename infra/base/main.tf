@@ -212,10 +212,39 @@ resource "azurerm_mysql_flexible_database" "bancos" {
 
 # --- Ambiente dos containers --------------------------------------------------
 
-resource "azurerm_container_app_environment" "ambiente" {
-  name                       = "cae-sigcf"
-  location                   = azurerm_resource_group.sigcf.location
-  resource_group_name        = azurerm_resource_group.sigcf.name
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
-  tags                       = local.tags
+# Desde 2026 o Azure cria ambientes no modo "Express" quando o modo não é informado, e esse modo
+# não aceita dois containers no mesmo app (o nginx e a API). O azurerm ainda não tem o campo, então
+# este recurso usa a API do Azure diretamente, pelo azapi, para pedir o modo ConsumptionOnly.
+resource "azapi_resource" "ambiente" {
+  type      = "Microsoft.App/managedEnvironments@2026-07-01"
+  name      = "cae-sigcf-consumo"
+  parent_id = azurerm_resource_group.sigcf.id
+  location  = azurerm_resource_group.sigcf.location
+  tags      = local.tags
+
+  # O schema embutido no azapi ainda não conhece a versão 2026-07-01 da API, a primeira com o
+  # campo environmentMode; a validação passa a ser feita pelo próprio Azure.
+  schema_validation_enabled = false
+
+  body = {
+    properties = {
+      environmentMode = "ConsumptionOnly"
+      appLogsConfiguration = {
+        destination = "log-analytics"
+        logAnalyticsConfiguration = {
+          customerId = azurerm_log_analytics_workspace.logs.workspace_id
+        }
+      }
+    }
+  }
+
+  sensitive_body = {
+    properties = {
+      appLogsConfiguration = {
+        logAnalyticsConfiguration = {
+          sharedKey = azurerm_log_analytics_workspace.logs.primary_shared_key
+        }
+      }
+    }
+  }
 }

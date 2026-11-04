@@ -10,6 +10,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.9"
     }
+    azapi = {
+      source  = "Azure/azapi"
+      version = "~> 2.13"
+    }
   }
 
   # A conta de armazenamento é informada no init (ver docs/deploy.md).
@@ -26,3 +30,5 @@ provider "azurerm" {
   # automaticamente falha na assinatura de estudante.
   resource_provider_registrations = "none"
 }
+
+provider "azapi" {}

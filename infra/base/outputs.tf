@@ -9,7 +9,7 @@ output "regiao" {
 }
 
 output "ambiente_containers_id" {
-  value = azurerm_container_app_environment.ambiente.id
+  value = azapi_resource.ambiente.id
 }
 
 output "registry" {
