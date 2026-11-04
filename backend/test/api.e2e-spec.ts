@@ -150,6 +150,35 @@ describe('API do SIGCF (e2e)', () => {
 
     it('impede o motorista de acessar os cadastros', () =>
       api().get('/api/veiculos').set(como('joao')).expect(403));
+
+    it('responde com os cabeçalhos de segurança', async () => {
+      const res = await api().get('/api/health').expect(200);
+      expect(res.headers).toMatchObject({
+        'x-content-type-options': 'nosniff',
+        'x-frame-options': 'SAMEORIGIN',
+        'strict-transport-security': expect.stringContaining('max-age='),
+      });
+      expect(res.headers).not.toHaveProperty('x-powered-by');
+    });
+
+    it('bloqueia tentativas repetidas de login na mesma conta', async () => {
+      const tentar = () =>
+        api()
+          .post('/api/auth/login')
+          .send({ email: 'forca-bruta@e2e.local', senha: 'chute' });
+
+      for (let i = 0; i < 5; i++) await tentar().expect(401);
+      const bloqueada = await tentar().expect(429);
+      expect(bloqueada.body.message).toBe(
+        'Muitas tentativas de login. Aguarde um minuto e tente novamente.',
+      );
+
+      // Outra conta, na mesma rede, continua entrando normalmente.
+      await api()
+        .post('/api/auth/login')
+        .send({ email: 'maria@e2e.local', senha: 'senha-e2e' })
+        .expect(200);
+    });
   });
 
   describe('RF01 — cadastros', () => {
