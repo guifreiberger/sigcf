@@ -1,8 +1,13 @@
-import { Module } from '@nestjs/common';
+import {
+  type MiddlewareConsumer,
+  Module,
+  type NestModule,
+} from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module.js';
 import { ClientesModule } from './clientes/clientes.module.js';
+import { RegistroDeRequisicoes } from './common/registro-de-requisicoes.middleware.js';
 import { opcoesTypeOrm } from './database/typeorm.config.js';
 import { HealthController } from './health.controller.js';
 import { InteligenciaModule } from './inteligencia/inteligencia.module.js';
@@ -29,4 +34,8 @@ import { VeiculosModule } from './veiculos/veiculos.module.js';
   ],
   controllers: [HealthController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumidor: MiddlewareConsumer) {
+    consumidor.apply(RegistroDeRequisicoes).forRoutes('{*caminho}');
+  }
+}
