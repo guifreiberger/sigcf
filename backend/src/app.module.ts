@@ -9,6 +9,7 @@ import { InteligenciaModule } from './inteligencia/inteligencia.module.js';
 import { MotoristasModule } from './motoristas/motoristas.module.js';
 import { NotificacoesModule } from './notificacoes/notificacoes.module.js';
 import { OrdensModule } from './ordens/ordens.module.js';
+import { RastreamentoModule } from './rastreamento/rastreamento.module.js';
 import { VeiculosModule } from './veiculos/veiculos.module.js';
 
 @Module({
@@ -24,6 +25,7 @@ import { VeiculosModule } from './veiculos/veiculos.module.js';
     OrdensModule,
     InteligenciaModule,
     NotificacoesModule,
+    RastreamentoModule,
   ],
   controllers: [HealthController],
 })
