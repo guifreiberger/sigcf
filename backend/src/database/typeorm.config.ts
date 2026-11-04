@@ -17,6 +17,9 @@ export function opcoesTypeOrm(): DataSourceOptions {
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     charset: 'utf8mb4',
+    // O MySQL gerenciado do Azure só aceita conexões criptografadas; o local, não.
+    ssl:
+      process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : undefined,
     timezone: 'Z',
     // Sem isso o driver converte DATE em Date à meia-noite UTC e o dia recua no fuso -03:00.
     dateStrings: ['DATE'],
