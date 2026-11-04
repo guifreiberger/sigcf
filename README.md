@@ -143,6 +143,8 @@ O relatório de cobertura fica em `coverage/lcov-report/index.html` de cada proj
 | [`docs/user-stories.md`](docs/user-stories.md) | User stories com critérios de aceite e os testes que comprovam cada uma |
 | [`docs/arquitetura.md`](docs/arquitetura.md) | Diagramas C4 (contexto, containers e componentes) e o caminho de uma requisição |
 | [`docs/adr/`](docs/adr) | Registros das decisões de arquitetura, incluindo a mudança de stack em relação à RFC |
+| [`docs/deploy.md`](docs/deploy.md) | Implantação no Azure: ambientes, pipeline, configuração inicial, operação e rollback |
+| [`docs/observabilidade.md`](docs/observabilidade.md) | Logs, métricas, alertas e consultas prontas para acompanhar a produção |
 | [`docs/der.md`](docs/der.md) | Modelo de dados, decisões de modelagem e máquina de estados da ordem |
 | [`docs/api.md`](docs/api.md) | Endpoints da API, perfis de acesso e códigos de erro |
 | [`docs/inteligencia.md`](docs/inteligencia.md) | Metodologia da tela de inteligência: recorrência, previsão, alertas e tendência de peso |
