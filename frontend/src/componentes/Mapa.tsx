@@ -39,6 +39,21 @@ function Enquadrar({ pontos }: { pontos: LatLngTuple[] }) {
   return null
 }
 
+// O Leaflet mede o contêiner só ao iniciar; se o layout muda depois (CSS carregado sob demanda,
+// tela girada, menu recolhido), sobra uma faixa cinza sem mapa. Remedir resolve.
+function AcompanharTamanho() {
+  const mapa = useMap()
+
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return
+    const observador = new ResizeObserver(() => mapa.invalidateSize())
+    observador.observe(mapa.getContainer())
+    return () => observador.disconnect()
+  }, [mapa])
+
+  return null
+}
+
 export function Mapa({ rotulo, trajeto = [], marcadores = [] }: Props) {
   return (
     <div className="mapa" role="region" aria-label={rotulo}>
@@ -64,6 +79,7 @@ export function Mapa({ rotulo, trajeto = [], marcadores = [] }: Props) {
             <Tooltip>{m.rotulo}</Tooltip>
           </CircleMarker>
         ))}
+        <AcompanharTamanho />
         <Enquadrar pontos={[...trajeto, ...marcadores.map((m) => m.posicao)]} />
       </MapContainer>
     </div>
