@@ -45,6 +45,16 @@ Toda ordem retornada traz `transicoesPermitidas`: os status para os quais o usu�
 
 O campo opcional `localizacao` tem o formato `{ latitude, longitude, precisaoMetros? }`, com latitude entre -90 e 90 e longitude entre -180 e 180. Ela é gravada no registro do histórico criado pela mudança de status, e somente quando a ação é do motorista responsável. Uma localização enviada em ações do gestor é descartada. Sem o campo, a mudança de status é registrada normalmente, com as coordenadas nulas.
 
+## Trajeto da coleta (RF11)
+
+| Método | Rota | Perfil | Descrição |
+|---|---|---|---|
+| POST | `/rastreamento/pontos` | motorista | Envia um lote de 1 a 200 leituras do GPS: `{ pontos: [{ latitude, longitude, precisaoMetros?, registradoEm }] }`, com `registradoEm` em ISO 8601. Responde 204 |
+| GET | `/rastreamento/em-rota` | gestor | Coletas em andamento, com motorista, cliente, placa, início e a última posição confiável (`null` se o celular ainda não enviou nenhuma) |
+| GET | `/rastreamento/ordens/:id` | gestor | Trajeto da ordem: `pontos` confiáveis em ordem cronológica, `inicio`, `fim`, `duracaoSegundos`, `distanciaMetros` e `ultimaPosicao` |
+
+Os pontos só são aceitos enquanto o motorista tem coleta em andamento e são gravados em cada uma delas; sem nenhuma, a resposta é 409. Leituras com precisão pior que 100 m ficam fora do mapa e da distância. As regras de cálculo e as decisões de privacidade estão em [`rastreamento.md`](rastreamento.md).
+
 ## Inteligência
 
 | Método | Rota | Perfil | Descrição |
@@ -73,5 +83,5 @@ O motorista recebe um aviso quando uma coleta é atribuída a ele e quando uma c
 | 401 | Token ausente, inválido ou expirado; credenciais incorretas |
 | 403 | Perfil sem permissão (ex.: motorista tentando cancelar) |
 | 404 | Recurso inexistente ou ordem de outro motorista |
-| 409 | Transição de status inválida; placa ou e-mail duplicado |
+| 409 | Transição de status inválida; placa ou e-mail duplicado; pontos de trajeto sem coleta em andamento |
 | 422 | Regra de negócio: veículo/motorista/cliente inativo, data no passado |
