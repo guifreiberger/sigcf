@@ -15,6 +15,7 @@ import {
   linkCoordenadas,
   ROTULO_STATUS,
 } from '../../util/formatos.ts'
+import { TrajetoDaOrdem } from './TrajetoDaOrdem.tsx'
 
 function Voltar() {
   return (
@@ -63,6 +64,8 @@ export function DetalheOrdem() {
           </button>
         )}
       </header>
+
+      <TrajetoDaOrdem ordem={o} />
 
       <div className="grade-detalhe">
         <section className="cartao">
