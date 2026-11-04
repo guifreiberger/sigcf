@@ -146,10 +146,15 @@ O relatório de cobertura fica em `coverage/lcov-report/index.html` de cada proj
 | [`docs/rastreamento.md`](docs/rastreamento.md) | Trajeto da coleta: envio da posição, cálculo de distância e duração, privacidade e limitações |
 | [`docs/desempenho.md`](docs/desempenho.md) | Medição do requisito de 300 ms e teste de volume com 200 mil ordens |
 | [`docs/validacao/`](docs/validacao) | Roteiro de entrevista, questionário e protocolo de teste de usabilidade (SUS) |
+| [`docs/licencas.md`](docs/licencas.md) | Licença do projeto e licenças dos componentes de terceiros |
 | [`docs/tcc/atualizacoes-proposta.tex`](docs/tcc/atualizacoes-proposta.tex) | Texto em LaTeX com RFs e RNFs atualizados para a proposta |
 
 ## Escopo do MVP
 
 Fazem parte da entrega: cadastro de veículos, motoristas e clientes; criação e delegação de ordens de coleta; visão do motorista com as coletas do dia; atualização de status com histórico rastreável; registro da localização do motorista no momento em que ele inicia, conclui ou reporta falha em uma coleta; acompanhamento da posição do motorista pelo gestor enquanto a coleta está em andamento, com o trajeto, a distância e a duração da corrida salvos ao final; e uma tela de inteligência que identifica o padrão de pedidos de cada cliente, prevê a próxima coleta, acompanha a tendência de peso e alerta sobre coletas esperadas que ainda não foram pedidas, calculada no próprio sistema, sem APIs externas de IA; e avisos no celular do motorista, mesmo com o app fechado, quando ele recebe uma coleta nova ou tem uma coleta cancelada.
 
-Estão **fora do escopo** desta versão: rastreamento por GPS em tempo real, roteirização automática, módulos financeiros ou fiscais (NF-e/CT-e), integração com ERPs de terceiros e aplicativo mobile nativo.
+Estão **fora do escopo** desta versão: rastreamento fora das coletas ou com o app fechado, roteirização automática, módulos financeiros ou fiscais (NF-e/CT-e), integração com ERPs de terceiros e aplicativo mobile nativo.
+
+## Licença
+
+Copyright (c) 2026 Guilherme Gabriel Freiberger. Todos os direitos reservados: o repositório é público para avaliação acadêmica e portfólio, sem concessão de licença de uso (ver [`LICENSE`](LICENSE)). As licenças dos componentes de terceiros estão em [`docs/licencas.md`](docs/licencas.md), e as regras para contribuir, em [`CONTRIBUTING.md`](CONTRIBUTING.md).
