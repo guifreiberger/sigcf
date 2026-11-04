@@ -1,3 +1,18 @@
+import {
+  Calendar,
+  Check,
+  Info,
+  LoaderCircle,
+  LogOut,
+  MapPin,
+  Navigation,
+  Phone,
+  Play,
+  RefreshCw,
+  TriangleAlert,
+  Truck,
+  Weight,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useAlterarStatus, useMinhasColetas } from '../../api/consultas.ts'
 import type { Ordem, StatusOrdem } from '../../api/tipos.ts'
@@ -12,6 +27,7 @@ import {
   formatarPlaca,
   formatarTelefone,
   hojeLocal,
+  iniciais,
   linkMapa,
 } from '../../util/formatos.ts'
 import { localizacaoBloqueada, obterLocalizacao } from '../../util/localizacao.ts'
@@ -34,6 +50,11 @@ const MOTIVOS_FALHA = [
 
 type Acao = { ordem: Ordem; status: 'CONCLUIDA' | 'FALHA' } | null
 
+function saudacao() {
+  const hora = new Date().getHours()
+  return hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
+}
+
 export function MinhasColetas() {
   const { usuario, sair } = useAuth()
   const hoje = hojeLocal()
@@ -54,6 +75,7 @@ export function MinhasColetas() {
     (a, b) => PRIORIDADE[a.status] - PRIORIDADE[b.status] || a.id - b.id,
   )
   const pendentes = ordenadas.filter((o) => o.status === 'AGUARDANDO' || o.status === 'EM_ANDAMENTO').length
+  const progresso = ordenadas.length ? Math.round(((ordenadas.length - pendentes) / ordenadas.length) * 100) : 0
 
   function fecharAcao() {
     setAcao(null)
@@ -74,11 +96,17 @@ export function MinhasColetas() {
   return (
     <div className="motorista">
       <header className="motorista__topo">
-        <div>
-          <small>Olá,</small>
-          <strong>{usuario?.nome.split(' ')[0]}</strong>
+        <div className="motorista__saudacao">
+          <span className="avatar" aria-hidden>
+            {iniciais(usuario?.nome ?? '')}
+          </span>
+          <div>
+            <small>{saudacao()},</small>
+            <strong>{usuario?.nome.split(' ')[0]}</strong>
+          </div>
         </div>
-        <button type="button" className="botao botao--fantasma-claro" onClick={sair}>
+        <button type="button" className="botao botao--fantasma-claro botao--pequeno" onClick={sair}>
+          <LogOut size={16} aria-hidden />
           Sair
         </button>
       </header>
@@ -95,13 +123,28 @@ export function MinhasColetas() {
           )}
           <button
             type="button"
-            className="botao botao--secundario botao--pequeno"
+            className="botao-icone"
             onClick={() => coletas.refetch()}
             disabled={coletas.isFetching}
+            aria-label="Atualizar coletas"
+            title="Atualizar coletas"
           >
-            {coletas.isFetching ? 'Atualizando…' : 'Atualizar'}
+            <RefreshCw size={20} className={coletas.isFetching ? 'girar' : undefined} aria-hidden />
           </button>
+          {ordenadas.length > 0 && (
+            <div
+              className="progresso"
+              role="progressbar"
+              aria-label="Coletas finalizadas"
+              aria-valuenow={progresso}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div className="progresso__barra" style={{ width: `${progresso}%` }} />
+            </div>
+          )}
           <p className="motorista__aviso">
+            <MapPin size={14} aria-hidden />
             {semPermissao
               ? 'A localização está bloqueada no navegador. As coletas funcionam normalmente, mas sem o registro do local.'
               : 'Sua localização é registrada somente quando você inicia, conclui ou reporta falha em uma coleta.'}
@@ -116,7 +159,7 @@ export function MinhasColetas() {
         {coletas.isPending ? (
           <Carregando texto="Buscando suas coletas…" />
         ) : ordenadas.length === 0 ? (
-          <Vazio>Nenhuma coleta atribuída a você hoje. Se isso parecer errado, fale com o gestor.</Vazio>
+          <Vazio icone={Calendar}>Nenhuma coleta atribuída a você hoje. Se isso parecer errado, fale com o gestor.</Vazio>
         ) : (
           <ul className="coletas">
             {ordenadas.map((ordem) => (
@@ -196,39 +239,64 @@ function CartaoColeta({ ordem, ocupado, rotuloOcupado, aoIniciar, aoConcluir, ao
       </header>
 
       <h2 className="coleta__cliente">{ordem.cliente.nome}</h2>
-      <p className="coleta__endereco">{ordem.enderecoColeta}</p>
+      <p className="coleta__linha coleta__endereco">
+        <MapPin size={17} aria-hidden />
+        {ordem.enderecoColeta}
+      </p>
 
       <div className="coleta__atalhos">
         <a className="botao botao--secundario" href={linkMapa(ordem.enderecoColeta)} target="_blank" rel="noreferrer">
+          <Navigation size={16} aria-hidden />
           Abrir no mapa
         </a>
         {ordem.cliente.telefone && (
           <a className="botao botao--secundario" href={`tel:${ordem.cliente.telefone}`}>
-            Ligar {formatarTelefone(ordem.cliente.telefone)}
+            <Phone size={16} aria-hidden />
+            {formatarTelefone(ordem.cliente.telefone)}
           </a>
         )}
       </div>
 
-      <p className="coleta__veiculo texto-suave">
-        Veículo {formatarPlaca(ordem.veiculo.placa)} · {ordem.veiculo.modelo}
-        {ordem.pesoEstimadoKg != null && ` · cerca de ${formatarKg(ordem.pesoEstimadoKg)}`}
+      <p className="coleta__meta">
+        <span>
+          <Truck size={15} aria-hidden />
+          {formatarPlaca(ordem.veiculo.placa)} · {ordem.veiculo.modelo}
+        </span>
+        {ordem.pesoEstimadoKg != null && (
+          <span>
+            <Weight size={15} aria-hidden />
+            cerca de {formatarKg(ordem.pesoEstimadoKg)}
+          </span>
+        )}
       </p>
-      {ordem.observacao && <p className="coleta__observacao pre-linha">{ordem.observacao}</p>}
+      {ordem.observacao && (
+        <p className="coleta__observacao pre-linha">
+          <Info size={17} aria-hidden />
+          <span>{ordem.observacao}</span>
+        </p>
+      )}
 
       {!finalizada && (
         <footer className="coleta__acoes">
           {pode('EM_ANDAMENTO') && (
             <button type="button" className="botao botao--primario botao--grande" onClick={aoIniciar} disabled={ocupado}>
+              {ocupado ? (
+                <LoaderCircle size={20} className="girar" aria-hidden />
+              ) : (
+                <Play size={20} aria-hidden />
+              )}
               {ocupado ? rotuloOcupado : 'Iniciar coleta'}
             </button>
           )}
           {pode('CONCLUIDA') && (
             <button type="button" className="botao botao--sucesso botao--grande" onClick={aoConcluir} disabled={ocupado}>
+              <Check size={20} aria-hidden />
               Concluir coleta
             </button>
           )}
           {pode('FALHA') && (
             <button type="button" className="botao botao--perigo-contorno botao--grande" onClick={aoFalhar} disabled={ocupado}>
+              <TriangleAlert size={20} aria-hidden />
               Reportar falha
             </button>
           )}

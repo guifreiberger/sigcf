@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { Bell, BellOff, BellRing, LoaderCircle, Smartphone } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { MensagemErro } from '../../componentes/Estados.tsx'
 import {
@@ -45,6 +46,9 @@ export function AvisosColetas() {
   if (estado === 'indisponivel') {
     return precisaInstalarNoIphone() ? (
       <section className="avisos">
+        <span className="avisos__icone">
+          <Smartphone size={20} aria-hidden />
+        </span>
         <p>
           Para receber aviso de coleta nova no iPhone, toque em <strong>Compartilhar</strong> e depois em{' '}
           <strong>Adicionar à Tela de Início</strong>. Abra o SIGCF pelo ícone e ative os avisos.
@@ -56,6 +60,9 @@ export function AvisosColetas() {
   if (estado === 'bloqueado') {
     return (
       <section className="avisos">
+        <span className="avisos__icone">
+          <BellOff size={20} aria-hidden />
+        </span>
         <p>Os avisos estão bloqueados. Libere as notificações do SIGCF nas configurações do navegador.</p>
       </section>
     )
@@ -64,6 +71,9 @@ export function AvisosColetas() {
   if (estado === 'ativo') {
     return (
       <section className="avisos avisos--ativo">
+        <span className="avisos__icone">
+          <BellRing size={16} aria-hidden />
+        </span>
         <p>Avisos de coleta nova ativados neste celular.</p>
         <button
           type="button"
@@ -81,6 +91,9 @@ export function AvisosColetas() {
   if (estado === 'inativo') {
     return (
       <section className="avisos">
+        <span className="avisos__icone">
+          <Bell size={20} aria-hidden />
+        </span>
         <p>Receba um aviso no celular, mesmo com o app fechado, quando chegar uma coleta nova para você.</p>
         <button
           type="button"
@@ -88,6 +101,7 @@ export function AvisosColetas() {
           disabled={processando}
           onClick={() => executar(ativarAvisos)}
         >
+          {processando ? <LoaderCircle size={18} className="girar" aria-hidden /> : <Bell size={18} aria-hidden />}
           {processando ? 'Ativando…' : 'Ativar avisos'}
         </button>
         <MensagemErro erro={erro} />
