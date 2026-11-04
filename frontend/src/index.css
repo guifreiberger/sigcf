@@ -1618,3 +1618,164 @@ svg.lucide {
     margin-bottom: 0.6rem;
   }
 }
+
+/* Rastreamento da coleta (RF11) */
+
+.rastreio {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.75rem 0.9rem;
+  background: var(--st-em_andamento-fundo);
+  border-radius: var(--raio);
+  color: var(--st-em_andamento);
+  font-size: 0.88rem;
+}
+
+.rastreio--alerta {
+  background: var(--perigo-fundo);
+  color: var(--perigo);
+}
+
+.rastreio__icone {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--superficie);
+}
+
+.rastreio strong,
+.rastreio small {
+  display: block;
+}
+
+.rastreio small {
+  margin-top: 0.2rem;
+  opacity: 0.85;
+}
+
+/* O Leaflet usa z-index alto nas camadas; o contexto próprio evita que o mapa cubra o menu. */
+.mapa {
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-sm);
+}
+
+.mapa__area {
+  width: 100%;
+  height: 340px;
+  background: var(--superficie-2);
+  font: inherit;
+}
+
+.indicadores-trajeto {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.indicadores-trajeto div {
+  padding: 0.7rem 0.85rem;
+  background: var(--superficie-2);
+  border: 1px solid var(--borda-suave);
+  border-radius: var(--raio-sm);
+}
+
+.indicadores-trajeto dt {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--texto-suave);
+}
+
+.indicadores-trajeto dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.ao-vivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--perigo);
+}
+
+.ao-vivo::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulsar 1.6s ease-in-out infinite;
+}
+
+@keyframes pulsar {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ao-vivo::before {
+    animation: none;
+  }
+}
+
+.em-rota {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.em-rota__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.em-rota__lista a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-sm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.em-rota__lista a:hover,
+.em-rota__lista a:focus-visible {
+  border-color: var(--borda-forte);
+  background: var(--superficie-2);
+}
+
+.em-rota__lista span,
+.em-rota__lista small {
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+@media (max-width: 900px) {
+  .em-rota {
+    grid-template-columns: 1fr;
+  }
+
+  .mapa__area {
+    height: 280px;
+  }
+}

@@ -50,6 +50,12 @@ function navegadorDoCelular({ gps, permissao = 'granted' }: { gps?: GeolocationC
     value: {
       getCurrentPosition: (sucesso: PositionCallback, erro: PositionErrorCallback) =>
         gps ? sucesso({ coords: gps } as GeolocationPosition) : erro({ code: 1 } as GeolocationPositionError),
+      watchPosition: (sucesso: PositionCallback, erro: PositionErrorCallback) => {
+        if (gps) sucesso({ coords: gps, timestamp: Date.now() } as GeolocationPosition)
+        else erro({ code: 1 } as GeolocationPositionError)
+        return 1
+      },
+      clearWatch: () => {},
     },
   })
   Object.defineProperty(navigator, 'permissions', {
@@ -179,6 +185,63 @@ describe('MinhasColetas', () => {
     expect(await within(dialogo).findByRole('alert')).toHaveTextContent('Não é possível alterar o status')
     await userEvent.click(within(dialogo).getByRole('button', { name: 'Voltar' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  describe('compartilhamento da localização durante a coleta', () => {
+    const noCaminho = { latitude: -26.4851, longitude: -49.0713, accuracy: 9 } as GeolocationCoordinates
+
+    it('avisa o motorista enquanto compartilha a posição com o gestor', async () => {
+      navegadorDoCelular({ gps: noCaminho })
+      apiFalsa({ [MINHAS]: { corpo: [emAndamento] } })
+      abrir()
+
+      expect(await screen.findByText('Compartilhando sua localização com o gestor')).toBeInTheDocument()
+      expect(screen.getByText(/A tela fica ligada até você concluir/)).toBeInTheDocument()
+      expect(screen.getByText('1 posição aguardando conexão para envio')).toBeInTheDocument()
+    })
+
+    it('não compartilha nada sem coleta em andamento', async () => {
+      navegadorDoCelular({ gps: noCaminho })
+      apiFalsa({ [MINHAS]: { corpo: [aguardando, concluida] } })
+      abrir()
+
+      await screen.findByText('WEG')
+      expect(screen.queryByText(/Compartilhando sua localização/)).not.toBeInTheDocument()
+    })
+
+    it('envia as posições guardadas antes de concluir, porque depois o servidor as recusa', async () => {
+      navegadorDoCelular({ gps: noCaminho })
+      const fetchFalso = apiFalsa({
+        [MINHAS]: { corpo: [emAndamento] },
+        'POST /rastreamento/pontos': { status: 204 },
+        'PATCH /ordens/2/status': { corpo: { ...emAndamento, status: 'CONCLUIDA' } },
+      })
+      abrir()
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Concluir coleta' }))
+      await userEvent.click(
+        within(screen.getByRole('dialog', { name: 'Concluir coleta' })).getByRole('button', {
+          name: 'Confirmar conclusão',
+        }),
+      )
+
+      await expect.poll(() => corpoEnviado(fetchFalso, 'PATCH /ordens/2/status')).toBeDefined()
+      const chamadas = fetchFalso.mock.calls.map(([url, init]) => `${init?.method} ${url}`)
+      expect(chamadas.indexOf('POST /api/rastreamento/pontos')).toBeLessThan(
+        chamadas.indexOf('PATCH /api/ordens/2/status'),
+      )
+      expect(corpoEnviado(fetchFalso, 'POST /rastreamento/pontos').pontos).toEqual([
+        expect.objectContaining({ latitude: -26.4851, longitude: -49.0713, precisaoMetros: 9 }),
+      ])
+    })
+
+    it('orienta a liberar o GPS quando o celular não permite', async () => {
+      navegadorDoCelular({ permissao: 'denied' })
+      apiFalsa({ [MINHAS]: { corpo: [emAndamento] } })
+      abrir()
+
+      expect(await screen.findByText('Não foi possível acessar o GPS')).toBeInTheDocument()
+    })
   })
 
   it('informa quando não consegue buscar as coletas', async () => {

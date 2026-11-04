@@ -3,6 +3,8 @@ import {
   Check,
   Info,
   LoaderCircle,
+  LocateFixed,
+  LocateOff,
   LogOut,
   MapPin,
   Navigation,
@@ -32,6 +34,7 @@ import {
 } from '../../util/formatos.ts'
 import { localizacaoBloqueada, obterLocalizacao } from '../../util/localizacao.ts'
 import { AvisosColetas } from './AvisosColetas.tsx'
+import { type EstadoRastreamento, useRastreamento } from './useRastreamento.ts'
 
 const PRIORIDADE: Record<StatusOrdem, number> = {
   EM_ANDAMENTO: 0,
@@ -60,6 +63,7 @@ export function MinhasColetas() {
   const hoje = hojeLocal()
   const coletas = useMinhasColetas(hoje)
   const alterar = useAlterarStatus()
+  const rastreamento = useRastreamento(coletas.data?.some((o) => o.status === 'EM_ANDAMENTO') ?? false)
   const [acao, setAcao] = useState<Acao>(null)
   const [localizando, setLocalizando] = useState<number | null>(null)
   const [semPermissao, setSemPermissao] = useState(false)
@@ -85,6 +89,8 @@ export function MinhasColetas() {
   async function executar(ordem: Ordem, status: StatusOrdem, motivo?: string) {
     setLocalizando(ordem.id)
     const localizacao = await obterLocalizacao()
+    // Depois de finalizar, o servidor recusa pontos; então o que estiver na fila vai antes.
+    if (status !== 'EM_ANDAMENTO') await rastreamento.enviarPendentes()
     setLocalizando(null)
     if (!localizacao) localizacaoBloqueada().then(setSemPermissao)
     alterar.mutate(
@@ -147,10 +153,11 @@ export function MinhasColetas() {
             <MapPin size={14} aria-hidden />
             {semPermissao
               ? 'A localização está bloqueada no navegador. As coletas funcionam normalmente, mas sem o registro do local.'
-              : 'Sua localização é registrada somente quando você inicia, conclui ou reporta falha em uma coleta.'}
+              : 'Sua localização é compartilhada com o gestor somente enquanto uma coleta estiver em andamento.'}
           </p>
         </section>
 
+        <Compartilhamento estado={rastreamento.estado} pendentes={rastreamento.pendentes} />
         <AvisosColetas />
 
         <MensagemErro erro={coletas.error} />
@@ -215,6 +222,37 @@ export function MinhasColetas() {
         aoConfirmar={(motivo) => acao && executar(acao.ordem, 'FALHA', motivo)}
       />
     </div>
+  )
+}
+
+function Compartilhamento({ estado, pendentes }: { estado: EstadoRastreamento; pendentes: number }) {
+  if (estado === 'desligado') return null
+  const semGps = estado === 'sem-gps'
+  const Icone = semGps ? LocateOff : LocateFixed
+
+  return (
+    <section className={`rastreio ${semGps ? 'rastreio--alerta' : ''}`} role="status">
+      <span className="rastreio__icone">
+        <Icone size={18} aria-hidden />
+      </span>
+      <p>
+        <strong>
+          {semGps
+            ? 'Não foi possível acessar o GPS'
+            : estado === 'aguardando-gps'
+              ? 'Procurando o sinal do GPS…'
+              : 'Compartilhando sua localização com o gestor'}
+        </strong>
+        {semGps
+          ? 'Libere a localização do navegador para o gestor acompanhar a coleta.'
+          : 'A tela fica ligada até você concluir ou reportar falha na coleta.'}
+        {pendentes > 0 && (
+          <small>
+            {pendentes === 1 ? '1 posição aguardando' : `${pendentes} posições aguardando`} conexão para envio
+          </small>
+        )}
+      </p>
+    </section>
   )
 }
 
