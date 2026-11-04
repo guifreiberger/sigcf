@@ -49,6 +49,23 @@ export function formatarKg(kg: number) {
   return `${kg.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg`
 }
 
+export function formatarDuracao(segundos: number) {
+  const minutos = Math.round(segundos / 60)
+  if (minutos < 1) return 'menos de 1 min'
+  if (minutos < 60) return `${minutos} min`
+  return `${Math.floor(minutos / 60)} h ${String(minutos % 60).padStart(2, '0')} min`
+}
+
+export function formatarDistancia(metros: number) {
+  if (metros < 1000) return `${Math.round(metros)} m`
+  return `${(metros / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km`
+}
+
+export function tempoDesde(iso: string, agora = Date.now()) {
+  const segundos = Math.max(0, (agora - new Date(iso).getTime()) / 1000)
+  return segundos < 60 ? 'agora há pouco' : `há ${formatarDuracao(segundos)}`
+}
+
 export function linkMapa(endereco: string) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}`
 }
