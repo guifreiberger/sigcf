@@ -11,6 +11,7 @@ import {
   ORDEM_STATUS,
   ROTULO_STATUS,
 } from '../../util/formatos.ts'
+import { EmRota } from './EmRota.tsx'
 import { TabelaOrdens } from './TabelaOrdens.tsx'
 
 const ATUALIZAR_A_CADA_MS = 15_000
@@ -80,6 +81,8 @@ export function Painel() {
           })}
         </div>
       )}
+
+      <EmRota />
 
       <section className="cartao">
         <header className="cartao__topo">
