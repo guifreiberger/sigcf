@@ -12,7 +12,7 @@ function gpsFalso() {
   const gps = {
     aoLer: null as PositionCallback | null,
     aoFalhar: null as PositionErrorCallback | null,
-    watchPosition: vi.fn((aoLer: PositionCallback, aoFalhar: PositionErrorCallback) => {
+    watchPosition: vi.fn((aoLer: PositionCallback, aoFalhar: PositionErrorCallback, _opcoes?: PositionOptions) => {
       gps.aoLer = aoLer
       gps.aoFalhar = aoFalhar
       return 42
