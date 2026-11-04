@@ -79,7 +79,7 @@ npm run start:dev
 
 Para os avisos de coleta nova no celular, gere um par de chaves com `npx web-push generate-vapid-keys` e preencha `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` no `backend/.env` (e no `.env` da raiz, para o modo em containers). Sem essas chaves o sistema funciona normalmente, apenas sem enviar avisos. Os avisos só funcionam na versão instalada do app (build de produção ou containers), pois dependem do service worker; no iPhone, é preciso adicionar o SIGCF à Tela de Início.
 
-O `seed` aplica as migrations e cria dados de demonstração (um gestor, dois motoristas, veículos, clientes e ordens do dia). Os e-mails e a senha desses usuários estão em `backend/.env.example`. Como as coletas de demonstração são criadas para a data atual, use `npm run seed:recriar` para apagar e recriar a base em outro dia (bloqueado em produção). A API sobe em `http://localhost:3000/api`; os endpoints estão descritos em [`docs/api.md`](docs/api.md).
+O `seed` aplica as migrations e cria dados de demonstração (um gestor, dois motoristas, veículos, clientes, ordens do dia e trajetos simulados dos últimos 30 dias, incluindo uma coleta em andamento para o mapa do painel). Os e-mails e a senha desses usuários estão em `backend/.env.example`. Como as coletas de demonstração são criadas para a data atual, use `npm run seed:recriar` para apagar e recriar a base em outro dia (bloqueado em produção). A API sobe em `http://localhost:3000/api`; os endpoints estão descritos em [`docs/api.md`](docs/api.md).
 
 **4. Rode o front-end**
 
@@ -124,11 +124,16 @@ docker compose exec -e NODE_ENV=development backend node dist/database/seed.js -
 
 ```bash
 cd backend
-npm test            # unitários (máquina de estados do RF04)
+npm test            # unitários
+npm run test:cov    # unitários com relatório de cobertura (mínimo de 75%)
 npm run test:e2e    # ponta a ponta, contra o banco sigcf_test
+
+cd ../frontend
+npm test            # componentes e telas, com Vitest e Testing Library
+npm run test:cov    # com relatório de cobertura (mínimo de 25%)
 ```
 
-Os testes e2e recriam o schema do banco `sigcf_test` a cada execução e se recusam a rodar em qualquer outro banco, preservando os dados de desenvolvimento.
+O relatório de cobertura fica em `coverage/lcov-report/index.html` de cada projeto, e o CI do GitHub Actions roda tudo isso a cada push. Os testes e2e recriam o schema do banco `sigcf_test` a cada execução e se recusam a rodar em qualquer outro banco, preservando os dados de desenvolvimento.
 
 ## Documentação
 
@@ -137,12 +142,13 @@ Os testes e2e recriam o schema do banco `sigcf_test` a cada execução e se recu
 | [`docs/der.md`](docs/der.md) | Modelo de dados, decisões de modelagem e máquina de estados da ordem |
 | [`docs/api.md`](docs/api.md) | Endpoints da API, perfis de acesso e códigos de erro |
 | [`docs/inteligencia.md`](docs/inteligencia.md) | Metodologia da tela de inteligência: recorrência, previsão, alertas e tendência de peso |
+| [`docs/rastreamento.md`](docs/rastreamento.md) | Trajeto da coleta: envio da posição, cálculo de distância e duração, privacidade e limitações |
 | [`docs/desempenho.md`](docs/desempenho.md) | Medição do requisito de 300 ms e teste de volume com 200 mil ordens |
 | [`docs/validacao/`](docs/validacao) | Roteiro de entrevista, questionário e protocolo de teste de usabilidade (SUS) |
 | [`docs/tcc/atualizacoes-proposta.tex`](docs/tcc/atualizacoes-proposta.tex) | Texto em LaTeX com RFs e RNFs atualizados para a proposta |
 
 ## Escopo do MVP
 
-Fazem parte da entrega: cadastro de veículos, motoristas e clientes; criação e delegação de ordens de coleta; visão do motorista com as coletas do dia; atualização de status com histórico rastreável; registro da localização do motorista no momento em que ele inicia, conclui ou reporta falha em uma coleta; e uma tela de inteligência que identifica o padrão de pedidos de cada cliente, prevê a próxima coleta, acompanha a tendência de peso e alerta sobre coletas esperadas que ainda não foram pedidas, calculada no próprio sistema, sem APIs externas de IA; e avisos no celular do motorista, mesmo com o app fechado, quando ele recebe uma coleta nova ou tem uma coleta cancelada.
+Fazem parte da entrega: cadastro de veículos, motoristas e clientes; criação e delegação de ordens de coleta; visão do motorista com as coletas do dia; atualização de status com histórico rastreável; registro da localização do motorista no momento em que ele inicia, conclui ou reporta falha em uma coleta; acompanhamento da posição do motorista pelo gestor enquanto a coleta está em andamento, com o trajeto, a distância e a duração da corrida salvos ao final; e uma tela de inteligência que identifica o padrão de pedidos de cada cliente, prevê a próxima coleta, acompanha a tendência de peso e alerta sobre coletas esperadas que ainda não foram pedidas, calculada no próprio sistema, sem APIs externas de IA; e avisos no celular do motorista, mesmo com o app fechado, quando ele recebe uma coleta nova ou tem uma coleta cancelada.
 
 Estão **fora do escopo** desta versão: rastreamento por GPS em tempo real, roteirização automática, módulos financeiros ou fiscais (NF-e/CT-e), integração com ERPs de terceiros e aplicativo mobile nativo.
