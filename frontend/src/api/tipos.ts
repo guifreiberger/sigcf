@@ -133,3 +133,31 @@ export interface Resumo {
   total: number
   porStatus: Record<StatusOrdem, number>
 }
+
+export interface PontoTrajeto {
+  latitude: number
+  longitude: number
+  precisaoMetros: number | null
+  registradoEm: string
+}
+
+export interface Trajeto {
+  ordemId: number
+  status: StatusOrdem
+  inicio: string | null
+  fim: string | null
+  distanciaMetros: number
+  duracaoSegundos: number | null
+  ultimaPosicao: PontoTrajeto | null
+  pontos: PontoTrajeto[]
+}
+
+export interface MotoristaEmRota {
+  ordemId: number
+  motorista: { id: number; nome: string }
+  cliente: string
+  enderecoColeta: string
+  placa: string
+  inicio: string | null
+  ultimaPosicao: PontoTrajeto | null
+}

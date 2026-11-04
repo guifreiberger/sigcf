@@ -5,9 +5,11 @@ import type {
   Inteligencia,
   Localizacao,
   Motorista,
+  MotoristaEmRota,
   Ordem,
   Resumo,
   StatusOrdem,
+  Trajeto,
   Veiculo,
 } from './tipos.ts'
 
@@ -121,9 +123,26 @@ export function useAlterarStatus() {
     }) => api<Ordem>(`/ordens/${id}/status`, { metodo: 'PATCH', corpo: { status, motivo, localizacao } }),
     onSuccess: (ordem) => {
       queryClient.setQueryData(['ordem', ordem.id], ordem)
-      for (const chave of ['ordens', 'resumo', 'minhas']) {
+      for (const chave of ['ordens', 'resumo', 'minhas', 'trajeto', 'em-rota']) {
         queryClient.invalidateQueries({ queryKey: [chave] })
       }
     },
+  })
+}
+
+export function useTrajeto(ordemId: number) {
+  return useQuery({
+    queryKey: ['trajeto', ordemId],
+    queryFn: () => api<Trajeto>(`/rastreamento/ordens/${ordemId}`),
+    // Ao vivo só enquanto a coleta está em andamento; depois o trajeto não muda mais.
+    refetchInterval: (query) => (query.state.data?.status === 'EM_ANDAMENTO' ? 10_000 : false),
+  })
+}
+
+export function useEmRota(atualizarACada?: number) {
+  return useQuery({
+    queryKey: ['em-rota'],
+    queryFn: () => api<MotoristaEmRota[]>('/rastreamento/em-rota'),
+    refetchInterval: atualizarACada,
   })
 }
