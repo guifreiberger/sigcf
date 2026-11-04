@@ -24,7 +24,8 @@
     "migration:run": "nest build && typeorm migration:run -d dist/database/data-source.js",
     "migration:revert": "nest build && typeorm migration:revert -d dist/database/data-source.js",
     "seed": "nest build && node dist/database/seed.js",
-    "seed:recriar": "nest build && node dist/database/seed.js --recriar"
+    "seed:recriar": "nest build && node dist/database/seed.js --recriar",
+    "gestor:criar": "nest build && node dist/database/criar-gestor.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
