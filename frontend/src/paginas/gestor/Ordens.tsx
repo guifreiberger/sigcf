@@ -1,3 +1,4 @@
+import { FilterX, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { type FiltrosOrdens, useCadastro, useOrdens } from '../../api/consultas.ts'
@@ -23,6 +24,7 @@ export function Ordens() {
           <p className="texto-suave">Histórico completo, com filtros por data, status, motorista e cliente.</p>
         </div>
         <Link to="/gestor/ordens/nova" className="botao botao--primario">
+          <Plus size={18} aria-hidden />
           Nova ordem
         </Link>
       </header>
@@ -66,6 +68,7 @@ export function Ordens() {
           </select>
         </label>
         <button type="button" className="botao botao--fantasma" onClick={() => setFiltros({})}>
+          <FilterX size={16} aria-hidden />
           Limpar filtros
         </button>
       </section>

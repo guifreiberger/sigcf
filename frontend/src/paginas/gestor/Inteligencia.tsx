@@ -1,3 +1,4 @@
+import { CalendarClock, CircleCheck, Info, Minus, Plus, TrendingDown, TrendingUp, TriangleAlert } from 'lucide-react'
 import { Link } from 'react-router'
 import { useInteligencia } from '../../api/consultas.ts'
 import type { AlertaColeta, AnaliseCliente } from '../../api/tipos.ts'
@@ -17,11 +18,18 @@ function textoAlerta({ tipo, dias, dataPrevista }: AlertaColeta) {
 function Tendencia({ peso }: { peso: AnaliseCliente['peso'] }) {
   if (peso.tendencia === 'INSUFICIENTE' || peso.variacaoMensalPct === null) return <>—</>
   const variacao = `${peso.variacaoMensalPct > 0 ? '+' : ''}${peso.variacaoMensalPct.toLocaleString('pt-BR')}% ao mês`
-  const rotulo = { ALTA: '↑ Alta', QUEDA: '↓ Queda', ESTAVEL: '→ Estável' }[peso.tendencia]
+  const { rotulo, Icone } = {
+    ALTA: { rotulo: 'Alta', Icone: TrendingUp },
+    QUEDA: { rotulo: 'Queda', Icone: TrendingDown },
+    ESTAVEL: { rotulo: 'Estável', Icone: Minus },
+  }[peso.tendencia]
   return (
     <span className={`tendencia tendencia--${peso.tendencia.toLowerCase()}`} title={`R² = ${peso.r2}`}>
-      {rotulo}
-      <small className="bloco">{variacao}</small>
+      <Icone size={18} aria-hidden />
+      <span>
+        {rotulo}
+        <small className="bloco">{variacao}</small>
+      </span>
     </span>
   )
 }
@@ -58,6 +66,13 @@ export function Inteligencia() {
                 <ul className="alertas">
                   {dados.alertas.map((a) => (
                     <li key={a.clienteId} className={`alerta-coleta alerta-coleta--${a.tipo.toLowerCase()}`}>
+                      <span className="alerta-coleta__icone">
+                        {a.tipo === 'ATRASADA' ? (
+                          <TriangleAlert size={20} aria-hidden />
+                        ) : (
+                          <CalendarClock size={20} aria-hidden />
+                        )}
+                      </span>
                       <div>
                         <strong>{a.cliente}</strong>
                         <span>{a.padrao}</span>
@@ -67,13 +82,14 @@ export function Inteligencia() {
                         className="botao botao--primario botao--pequeno"
                         to={`/gestor/ordens/nova?clienteId=${a.clienteId}&data=${a.dataPrevista < dados.hoje ? dados.hoje : a.dataPrevista}`}
                       >
+                        <Plus size={16} aria-hidden />
                         Criar ordem
                       </Link>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <Vazio>Nenhum cliente com coleta esperada para os próximos dias.</Vazio>
+                <Vazio icone={CircleCheck}>Nenhum cliente com coleta esperada para os próximos dias.</Vazio>
               )}
             </section>
 
@@ -99,7 +115,9 @@ export function Inteligencia() {
                           <strong>{c.cliente}</strong>
                           <small className="texto-suave bloco">{plural(c.totalColetas, 'coleta')}</small>
                         </td>
-                        <td className={c.recorrencia.tipo === 'INSUFICIENTE' ? 'texto-suave' : ''}>
+                        <td
+                          className={`tabela__quebra ${c.recorrencia.tipo === 'INSUFICIENTE' ? 'texto-suave' : ''}`}
+                        >
                           {c.recorrencia.descricao}
                         </td>
                         <td>{c.recorrencia.regularidade != null ? `${Math.round(c.recorrencia.regularidade * 100)}%` : '—'}</td>
@@ -128,10 +146,13 @@ export function Inteligencia() {
             </section>
 
             <p className="texto-suave nota-metodo">
-              <strong>Como calculamos:</strong> o padrão considera o intervalo entre as coletas (sem as canceladas) e o dia
-              da semana ou do mês que mais se repete, exigindo ao menos 3 coletas. A regularidade é a proporção de
-              coletas que seguem o padrão. A tendência usa regressão linear sobre o peso estimado e só é indicada quando a
-              variação passa de 5% ao mês com ajuste consistente (R² de pelo menos 0,3).
+              <Info size={16} aria-hidden />
+              <span>
+                <strong>Como calculamos:</strong> o padrão considera o intervalo entre as coletas (sem as canceladas) e o
+                dia da semana ou do mês que mais se repete, exigindo ao menos 3 coletas. A regularidade é a proporção de
+                coletas que seguem o padrão. A tendência usa regressão linear sobre o peso estimado e só é indicada quando
+                a variação passa de 5% ao mês com ajuste consistente (R² de pelo menos 0,3).
+              </span>
             </p>
           </>
         )

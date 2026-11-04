@@ -1,3 +1,4 @@
+import { Check, LoaderCircle, Pencil, Plus, Power } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import {
   type Recurso,
@@ -22,6 +23,7 @@ export interface CampoCadastro {
 export interface ColunaCadastro<T> {
   titulo: string
   valor: (item: T) => ReactNode
+  quebraLinha?: boolean
 }
 
 interface Props<R extends Recurso> {
@@ -50,6 +52,7 @@ export function PaginaCadastro<R extends Recurso>({ recurso, titulo, descricao, 
           <p className="texto-suave">{descricao}</p>
         </div>
         <button type="button" className="botao botao--primario" onClick={() => setEditando('novo')}>
+          <Plus size={18} aria-hidden />
           Novo {singular}
         </button>
       </header>
@@ -90,7 +93,9 @@ export function PaginaCadastro<R extends Recurso>({ recurso, titulo, descricao, 
                 {lista.data.map((item) => (
                   <tr key={item.id} className={item.ativo ? '' : 'tabela__linha--inativa'}>
                     {colunas.map((c) => (
-                      <td key={c.titulo}>{c.valor(item)}</td>
+                      <td key={c.titulo} className={c.quebraLinha ? 'tabela__quebra' : undefined}>
+                        {c.valor(item)}
+                      </td>
                     ))}
                     <td>
                       <span className={`selo ${item.ativo ? 'selo--ativo' : 'selo--inativo'}`}>
@@ -99,6 +104,7 @@ export function PaginaCadastro<R extends Recurso>({ recurso, titulo, descricao, 
                     </td>
                     <td className="tabela__acoes">
                       <button type="button" className="botao botao--pequeno botao--secundario" onClick={() => setEditando(item)}>
+                        <Pencil size={14} aria-hidden />
                         Editar
                       </button>
                       <button
@@ -107,6 +113,7 @@ export function PaginaCadastro<R extends Recurso>({ recurso, titulo, descricao, 
                         disabled={alternar.isPending}
                         onClick={() => alternar.mutate({ id: item.id, ativo: !item.ativo })}
                       >
+                        <Power size={14} aria-hidden />
                         {item.ativo ? 'Desativar' : 'Reativar'}
                       </button>
                     </td>
@@ -203,6 +210,11 @@ function FormularioCadastro({ recurso, campos, item, aoConcluir }: PropsFormular
           Cancelar
         </button>
         <button type="submit" className="botao botao--primario" disabled={salvar.isPending}>
+          {salvar.isPending ? (
+            <LoaderCircle size={18} className="girar" aria-hidden />
+          ) : (
+            <Check size={18} aria-hidden />
+          )}
           {salvar.isPending ? 'Salvando…' : 'Salvar'}
         </button>
       </footer>

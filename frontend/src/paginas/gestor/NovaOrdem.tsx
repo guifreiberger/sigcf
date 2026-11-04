@@ -1,3 +1,4 @@
+import { Check, ChevronLeft, LoaderCircle } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useCadastro, useCriarOrdem } from '../../api/consultas.ts'
@@ -49,7 +50,8 @@ export function NovaOrdem() {
       <header className="pagina__topo">
         <div>
           <Link to="/gestor/ordens" className="voltar">
-            ← Ordens
+            <ChevronLeft size={16} aria-hidden />
+            Ordens
           </Link>
           <h1>Nova ordem de coleta</h1>
         </div>
@@ -148,6 +150,11 @@ export function NovaOrdem() {
             Cancelar
           </Link>
           <button type="submit" className="botao botao--primario" disabled={criar.isPending}>
+            {criar.isPending ? (
+              <LoaderCircle size={18} className="girar" aria-hidden />
+            ) : (
+              <Check size={18} aria-hidden />
+            )}
             {criar.isPending ? 'Criando…' : 'Criar ordem'}
           </button>
         </footer>
