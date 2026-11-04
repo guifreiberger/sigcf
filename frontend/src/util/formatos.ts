@@ -1,5 +1,12 @@
 import type { StatusOrdem } from '../api/tipos.ts'
 
+export function iniciais(nome: string) {
+  const partes = nome.trim().split(/\s+/)
+  const primeira = partes[0]?.[0] ?? ''
+  const ultima = partes.length > 1 ? partes[partes.length - 1][0] : ''
+  return (primeira + ultima).toUpperCase()
+}
+
 export function hojeLocal() {
   return new Date().toLocaleDateString('en-CA')
 }

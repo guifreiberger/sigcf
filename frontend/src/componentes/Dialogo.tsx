@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { type ReactNode, useEffect, useRef } from 'react'
 
 interface Props {
@@ -22,7 +23,7 @@ export function Dialogo({ aberto, titulo, aoFechar, children }: Props) {
       <header className="dialogo__topo">
         <h2 id="dialogo-titulo">{titulo}</h2>
         <button type="button" className="botao-icone" onClick={aoFechar} aria-label="Fechar">
-          ×
+          <X size={20} aria-hidden />
         </button>
       </header>
       {aberto && children}

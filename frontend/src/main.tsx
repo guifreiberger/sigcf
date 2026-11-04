@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router'
 import { ApiError } from './api/cliente.ts'
 import App from './App.tsx'
 import { AuthProvider } from './auth/AuthProvider.tsx'
+import '@fontsource-variable/inter'
 import './index.css'
 
 const queryClient = new QueryClient({
