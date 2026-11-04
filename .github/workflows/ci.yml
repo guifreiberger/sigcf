@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+# Um novo push na mesma branch cancela a execução anterior, que ficou desatualizada.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: sigcf_test
+          MYSQL_USER: sigcf
+          MYSQL_PASSWORD: sigcf
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: sigcf
+      DB_PASSWORD: sigcf
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Verificação de tipos
+        run: npm run typecheck
+      - name: Testes unitários com cobertura (mínimo de 75%)
+        run: npm run test:cov
+      - name: Testes e2e contra o MySQL
+        run: |
+          export JWT_SECRET="$(openssl rand -hex 32)"
+          npm run test:e2e
+      - name: Build
+        run: npm run build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cobertura-backend
+          path: backend/coverage/lcov.info
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Testes com cobertura (mínimo de 25%)
+        run: npm run test:cov
+      - name: Build (inclui a verificação de tipos)
+        run: npm run build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cobertura-frontend
+          path: frontend/coverage/lcov.info
+
+  imagens:
+    name: Imagens Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build da imagem do backend
+        run: docker build -t sigcf-backend:ci backend
+      - name: Build da imagem do frontend
+        run: docker build -t sigcf-frontend:ci frontend
