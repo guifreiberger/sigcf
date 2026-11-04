@@ -1,0 +1,49 @@
+# Requisitos — SIGCF
+
+Requisitos do Sistema Inteligente de Gestão de Coleta e Frota, construído para a rotina de uma empresa de coleta de recicláveis de Jaraguá do Sul/SC. Hoje o pedido chega por telefone ou WhatsApp, o atendente repassa no grupo dos motoristas e alguém responde que vai buscar. O sistema substitui esse fluxo informal por ordens de coleta rastreáveis.
+
+As user stories e os critérios de aceite de cada requisito estão em [`user-stories.md`](user-stories.md).
+
+## Requisitos funcionais
+
+| ID | Requisito | Descrição |
+|---|---|---|
+| RF01 | Cadastros | Manter veículos (placa, modelo, capacidade), motoristas (nome, e-mail, telefone, CNH opcional) e clientes (nome, telefone opcional, endereço), com ativação e desativação sem apagar o histórico |
+| RF02 | Ordem de coleta | O gestor cria a ordem ligando um cliente, um veículo ativo e um motorista ativo, com data, endereço (sugerido a partir do cliente) e observações |
+| RF03 | Coletas do motorista | O motorista vê apenas as próprias coletas do dia |
+| RF04 | Ciclo de status | Aguardando → Em andamento → Concluída ou Falha; cancelamento só pelo gestor; motivo obrigatório em falha e cancelamento |
+| RF05 | Rastreabilidade | Cada mudança de status registra data, hora, usuário, status anterior, novo status e motivo |
+| RF06 | Painel do dia | O gestor vê a quantidade de coletas do dia por status, atualizada automaticamente, e a lista com os responsáveis |
+| RF07 | Localização nas ações | A localização do motorista é registrada quando ele inicia, conclui ou reporta falha, e o gestor a vê no histórico |
+| RF08 | Peso estimado | O atendente registra, ao criar a ordem, o peso estimado informado pelo cliente |
+| RF09 | Inteligência para o gestor | Identificar o padrão de recorrência de cada cliente, prever a próxima coleta, acompanhar o peso médio e a tendência de peso e alertar coletas esperadas ainda não pedidas, sem APIs externas de IA |
+| RF10 | Aviso no celular | Notificar o motorista, mesmo com o app fechado, quando receber uma coleta ou tiver uma cancelada |
+| RF11 | Trajeto da coleta | Enquanto a coleta está em andamento, o gestor acompanha a posição do motorista; ao final, ficam salvos o trajeto, a distância e a duração da corrida |
+
+## Requisitos não funcionais
+
+| ID | Requisito | Como é atendido |
+|---|---|---|
+| RNF01 | Interface web responsiva | SPA em React, *mobile-first* na tela do motorista, instalável como PWA |
+| RNF02 | API em camadas | NestJS com Controller, Service e Repository (TypeORM) |
+| RNF03 | Banco relacional | MySQL 8 com InnoDB; mudança de status e histórico gravados na mesma transação |
+| RNF04 | Autenticação e autorização | JWT *stateless* com perfis gestor e motorista |
+| RNF05 | Privacidade | Só os dados necessários à operação; localização contínua apenas durante a coleta em andamento (ver [`rastreamento.md`](rastreamento.md)) |
+| RNF06 | Conteinerização | Docker e Docker Compose em desenvolvimento e implantação |
+| RNF07 | Desempenho | Respostas da API abaixo de 300 ms (ver [`desempenho.md`](desempenho.md)) |
+
+## Fluxos de negócio
+
+O playbook pede ao menos três fluxos de negócio completos. O SIGCF tem cinco, todos cobertos por testes automatizados: os testes e2e da API percorrem as regras de cada fluxo, e os testes das telas cobrem a interação do usuário.
+
+| Fluxo | Do início ao fim | Requisitos |
+|---|---|---|
+| **1. Atendimento de um pedido de coleta** | Cliente pede → gestor cria a ordem → motorista recebe o aviso → vê a coleta no celular → inicia (posição compartilhada) → conclui → gestor acompanha no painel e no histórico | RF02, RF03, RF04, RF05, RF06, RF07, RF10, RF11 |
+| **2. Tratamento de exceções** | Motorista reporta falha com motivo, ou gestor cancela com motivo → motorista é avisado do cancelamento → histórico registra quem, quando e por quê | RF04, RF05, RF10 |
+| **3. Antecipação de pedidos** | Sistema identifica o padrão do cliente → alerta a coleta esperada e não pedida → gestor cria a ordem já preenchida a partir do alerta | RF08, RF09, RF02 |
+| **4. Gestão da frota e da carteira** | Gestor cadastra, edita e desativa veículos, motoristas e clientes; itens inativos deixam de aparecer na criação de ordens, mas o histórico é preservado | RF01 |
+| **5. Acompanhamento da corrida** | Motorista inicia → gestor vê no mapa onde ele está → motorista conclui → trajeto, distância e duração ficam salvos na ordem | RF11 |
+
+## Fora do escopo
+
+Rastreamento fora das coletas ou com o app fechado, roteirização automática, módulos financeiros ou fiscais (NF-e, CT-e), integração com ERPs e aplicativo mobile nativo.
