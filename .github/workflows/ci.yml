@@ -101,3 +101,27 @@ jobs:
         run: docker build -t sigcf-backend:ci backend
       - name: Build da imagem do frontend
         run: docker build -t sigcf-frontend:ci frontend
+
+  sonar:
+    name: SonarCloud
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Histórico completo para o Sonar atribuir cada problema ao commit que o introduziu.
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          name: cobertura-backend
+          path: backend/coverage
+      - uses: actions/download-artifact@v8
+        with:
+          name: cobertura-frontend
+          path: frontend/coverage
+      - name: Análise estática e de segurança
+        # Fica desligada até o segredo SONAR_TOKEN ser cadastrado no repositório.
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@v8
