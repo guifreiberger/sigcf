@@ -2,10 +2,13 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+// Os modos app-homologacao e app-producao geram o frontend para o app Android, que não usa
+// service worker: os arquivos já vêm dentro do app.
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     VitePWA({
+      disable: mode.startsWith('app-'),
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
@@ -40,4 +43,4 @@ export default defineConfig({
       '/api': 'http://localhost:3000',
     },
   },
-})
+}))

@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:cov": "vitest run --coverage"
+    "test:cov": "vitest run --coverage",
+    "build:app:homologacao": "tsc -b && vite build --mode app-homologacao && cap sync android",
+    "build:app:producao": "tsc -b && vite build --mode app-producao && cap sync android"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.3.1",
