@@ -39,9 +39,10 @@ import { type EstadoRastreamento, useRastreamento } from './useRastreamento.ts'
 const PRIORIDADE: Record<StatusOrdem, number> = {
   EM_ANDAMENTO: 0,
   AGUARDANDO: 1,
-  FALHA: 2,
-  CONCLUIDA: 3,
-  CANCELADA: 4,
+  DISPONIVEL: 2,
+  FALHA: 3,
+  CONCLUIDA: 4,
+  CANCELADA: 5,
 }
 
 const MOTIVOS_FALHA = [
@@ -296,10 +297,12 @@ function CartaoColeta({ ordem, ocupado, rotuloOcupado, aoIniciar, aoConcluir, ao
       </div>
 
       <p className="coleta__meta">
-        <span>
-          <Truck size={15} aria-hidden />
-          {formatarPlaca(ordem.veiculo.placa)} · {ordem.veiculo.modelo}
-        </span>
+        {ordem.veiculo && (
+          <span>
+            <Truck size={15} aria-hidden />
+            {formatarPlaca(ordem.veiculo.placa)} · {ordem.veiculo.modelo}
+          </span>
+        )}
         {ordem.pesoEstimadoKg != null && (
           <span>
             <Weight size={15} aria-hidden />

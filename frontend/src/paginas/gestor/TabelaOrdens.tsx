@@ -35,8 +35,8 @@ export function TabelaOrdens({ ordens, mostrarData = false }: { ordens: Ordem[];
                   {o.enderecoColeta}
                 </small>
               </td>
-              <td>{o.motorista?.nome}</td>
-              <td>{formatarPlaca(o.veiculo.placa)}</td>
+              <td>{o.motorista?.nome ?? <span className="texto-suave">Aguardando aceite</span>}</td>
+              <td>{o.veiculo ? formatarPlaca(o.veiculo.placa) : '—'}</td>
               <td>{o.pesoEstimadoKg != null ? formatarKg(o.pesoEstimadoKg) : '—'}</td>
               <td>
                 <StatusBadge status={o.status} />

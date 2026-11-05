@@ -1,7 +1,8 @@
-import { Ban, CircleCheck, Clock, type LucideProps, TriangleAlert, Truck } from 'lucide-react'
+import { Ban, CircleCheck, Clock, type LucideProps, Megaphone, TriangleAlert, Truck } from 'lucide-react'
 import type { StatusOrdem } from '../api/tipos.ts'
 
 const ICONES = {
+  DISPONIVEL: Megaphone,
   AGUARDANDO: Clock,
   EM_ANDAMENTO: Truck,
   CONCLUIDA: CircleCheck,

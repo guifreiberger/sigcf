@@ -1,6 +1,7 @@
 export type Perfil = 'GESTOR' | 'MOTORISTA'
 
 export type StatusOrdem =
+  | 'DISPONIVEL'
   | 'AGUARDANDO'
   | 'EM_ANDAMENTO'
   | 'CONCLUIDA'
@@ -66,8 +67,9 @@ export interface Historico {
 export interface Ordem {
   id: number
   clienteId: number
-  veiculoId: number
-  motoristaId: number
+  // Vazios enquanto a coleta está disponível para os motoristas aceitarem (RF12).
+  veiculoId: number | null
+  motoristaId: number | null
   enderecoColeta: string
   dataColeta: string
   pesoEstimadoKg: number | null
@@ -76,8 +78,8 @@ export interface Ordem {
   createdAt: string
   updatedAt: string
   cliente: Cliente
-  veiculo: Veiculo
-  motorista?: Motorista
+  veiculo?: Veiculo | null
+  motorista?: Motorista | null
   criadoPor?: { id: number; nome: string }
   historico?: Historico[]
   transicoesPermitidas: StatusOrdem[]

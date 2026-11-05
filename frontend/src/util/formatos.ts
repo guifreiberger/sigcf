@@ -74,7 +74,15 @@ export function linkCoordenadas(latitude: number, longitude: number) {
   return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
 }
 
+export function diaRelativo(iso: string, hoje = hojeLocal()) {
+  if (iso === hoje) return 'Hoje'
+  const [ano, mes, dia] = hoje.split('-').map(Number)
+  if (iso === new Date(ano, mes - 1, dia + 1).toLocaleDateString('en-CA')) return 'Amanhã'
+  return formatarData(iso).slice(0, 5)
+}
+
 export const ROTULO_STATUS: Record<StatusOrdem, string> = {
+  DISPONIVEL: 'Disponível',
   AGUARDANDO: 'Aguardando',
   EM_ANDAMENTO: 'Em andamento',
   CONCLUIDA: 'Concluída',
@@ -83,6 +91,7 @@ export const ROTULO_STATUS: Record<StatusOrdem, string> = {
 }
 
 export const ORDEM_STATUS: StatusOrdem[] = [
+  'DISPONIVEL',
   'AGUARDANDO',
   'EM_ANDAMENTO',
   'CONCLUIDA',
