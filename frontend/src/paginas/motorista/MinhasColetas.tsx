@@ -69,7 +69,7 @@ export function MinhasColetas() {
   const [semPermissao, setSemPermissao] = useState(false)
 
   useEffect(() => {
-    localizacaoBloqueada().then(setSemPermissao)
+    void localizacaoBloqueada().then(setSemPermissao)
   }, [])
 
   const enviando = localizando !== null || alterar.isPending
@@ -92,7 +92,7 @@ export function MinhasColetas() {
     // Depois de finalizar, o servidor recusa pontos; então o que estiver na fila vai antes.
     if (status !== 'EM_ANDAMENTO') await rastreamento.enviarPendentes()
     setLocalizando(null)
-    if (!localizacao) localizacaoBloqueada().then(setSemPermissao)
+    if (!localizacao) void localizacaoBloqueada().then(setSemPermissao)
     alterar.mutate(
       { id: ordem.id, status, motivo, localizacao: localizacao ?? undefined },
       { onSuccess: () => setAcao(null) },

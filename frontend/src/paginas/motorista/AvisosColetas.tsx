@@ -17,7 +17,8 @@ export function AvisosColetas() {
   const [erro, setErro] = useState<unknown>(null)
 
   useEffect(() => {
-    estadoAvisos().then(setEstado)
+    // Se o navegador falhar ao consultar o service worker, trata como sem suporte a avisos.
+    estadoAvisos().then(setEstado, () => setEstado('indisponivel'))
   }, [])
 
   useEffect(() => {
