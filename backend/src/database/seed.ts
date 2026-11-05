@@ -367,7 +367,32 @@ async function popular(em: EntityManager, senha: string) {
   doDia(centro, joao, AGUARDANDO, 380, somarDias(dia, 1));
 
   await registrar(em, pedidos, gestor, veiculos, aleatorio, dia);
-  return pedidos.length;
+
+  // Coletas publicadas sem motorista, esperando quem as aceite (RF12).
+  const disponiveis = [
+    { cliente: metalurgica, data: dia, kg: 450 },
+    { cliente: malharia, data: somarDias(dia, 1), kg: null },
+  ];
+  for (const { cliente, data, kg } of disponiveis) {
+    const ordem = await em.save(OrdemColeta, {
+      clienteId: cliente.id,
+      veiculoId: null,
+      motoristaId: null,
+      criadoPorId: gestor.id,
+      enderecoColeta: cliente.endereco,
+      dataColeta: data,
+      pesoEstimadoKg: kg,
+      status: StatusOrdem.DISPONIVEL,
+    });
+    await em.insert(HistoricoStatus, {
+      ordemId: ordem.id,
+      usuarioId: gestor.id,
+      statusAnterior: null,
+      statusNovo: StatusOrdem.DISPONIVEL,
+      motivo: null,
+    });
+  }
+  return pedidos.length + disponiveis.length;
 }
 
 async function executar() {
