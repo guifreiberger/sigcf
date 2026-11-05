@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { CapacitorHttp } from '@capacitor/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ehAppNativo } from '../nativo/plataforma.ts'
 import { apiFalsa } from '../testes/apiFalsa.ts'
 import { sessaoDe } from '../testes/renderizar.tsx'
 import {
@@ -9,6 +11,14 @@ import {
   montarQuery,
   salvarSessao,
 } from './cliente.ts'
+
+vi.mock('../nativo/plataforma.ts', () => ({ ehAppNativo: vi.fn(() => false) }))
+vi.mock('@capacitor/core', async (original) => ({
+  ...(await original<typeof import('@capacitor/core')>()),
+  CapacitorHttp: { request: vi.fn() },
+}))
+
+const respostaNativa = (status: number, data: unknown) => ({ status, data, headers: {}, url: '' })
 
 describe('cliente da API', () => {
   describe('sessão', () => {
@@ -117,6 +127,63 @@ describe('cliente da API', () => {
         'E-mail ou senha inválidos.',
       )
       expect(aoExpirar).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('no app Android', () => {
+    const httpNativo = vi.mocked(CapacitorHttp.request)
+
+    beforeEach(() => {
+      vi.mocked(ehAppNativo).mockReturnValue(true)
+      vi.stubEnv('VITE_API_URL', 'https://sigcf.exemplo/api')
+    })
+
+    afterEach(() => {
+      vi.mocked(ehAppNativo).mockReturnValue(false)
+      httpNativo.mockReset()
+      vi.unstubAllEnvs()
+    })
+
+    it('chama o endereço completo da API pelo HTTP nativo, que o Android não limita em segundo plano', async () => {
+      salvarSessao(sessaoDe('MOTORISTA'))
+      const fetchFalso = vi.fn()
+      vi.stubGlobal('fetch', fetchFalso)
+      httpNativo.mockResolvedValue(respostaNativa(200, [{ id: 1 }]))
+
+      await expect(api('/rastreamento/pontos', { metodo: 'POST', corpo: { pontos: [] } })).resolves.toEqual([
+        { id: 1 },
+      ])
+
+      expect(httpNativo).toHaveBeenCalledWith({
+        url: 'https://sigcf.exemplo/api/rastreamento/pontos',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-motorista' },
+        data: { pontos: [] },
+      })
+      expect(fetchFalso).not.toHaveBeenCalled()
+    })
+
+    it('entende o JSON que chega como texto', async () => {
+      httpNativo.mockResolvedValue(respostaNativa(200, '{"id":3}'))
+
+      await expect(api('/ordens/3')).resolves.toEqual({ id: 3 })
+    })
+
+    it('traduz os erros como no navegador', async () => {
+      httpNativo.mockResolvedValue(respostaNativa(409, { message: 'Nenhuma coleta em andamento.' }))
+
+      await expect(api('/rastreamento/pontos', { metodo: 'POST', corpo: {} })).rejects.toMatchObject({
+        status: 409,
+        message: 'Nenhuma coleta em andamento.',
+      })
+    })
+
+    it('devolve undefined no 204 e trata a falta de conexão', async () => {
+      httpNativo.mockResolvedValueOnce(respostaNativa(204, ''))
+      await expect(api('/clientes/1', { metodo: 'DELETE' })).resolves.toBeUndefined()
+
+      httpNativo.mockRejectedValueOnce(new Error('UnknownHostException'))
+      await expect(api('/clientes')).rejects.toMatchObject({ status: 0 })
     })
   })
 
