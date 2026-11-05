@@ -12,7 +12,7 @@ Base: `http://localhost:3000/api`. Exceto `POST /auth/login` e `GET /health`, to
 
 ## Cadastros (RF01)
 
-Mesmo formato para `/motoristas`, `/veiculos` e `/clientes`, todos restritos ao **gestor**.
+Mesmo formato para `/motoristas`, `/veiculos` e `/clientes`, todos restritos ao **gestor**. A única exceção é `GET /veiculos`, que o motorista também acessa para escolher o veículo ao aceitar uma coleta disponível (RF12).
 
 | Método | Rota | Descrição |
 |---|---|---|
@@ -28,18 +28,22 @@ Campos de criação:
 - **veículo:** `placa` (AAA1234 ou Mercosul AAA1A23; hífen e minúsculas são normalizados), `modelo`, `capacidadeKg`
 - **cliente:** `nome`, `endereco`, `telefone` (opcional)
 
-## Ordens de coleta (RF02 a RF04)
+## Ordens de coleta (RF02 a RF04, RF12)
 
 | Método | Rota | Perfil | Descrição |
 |---|---|---|---|
-| POST | `/ordens` | gestor | Cria ordem: `clienteId`, `veiculoId`, `motoristaId`, `dataColeta` (AAAA-MM-DD), `enderecoColeta?`, `pesoEstimadoKg?`, `observacao?` |
+| POST | `/ordens` | gestor | Cria ordem: `clienteId`, `dataColeta` (AAAA-MM-DD), `veiculoId?`, `motoristaId?`, `enderecoColeta?`, `pesoEstimadoKg?`, `observacao?`. Sem motorista e veículo, a ordem nasce `DISPONIVEL` e todos os motoristas são avisados; informar só um dos dois responde 400 |
 | GET | `/ordens?data=&status=&motoristaId=&clienteId=` | gestor | Lista com filtros (máx. 200, mais recentes primeiro) |
 | GET | `/ordens/resumo?data=` | gestor | Contagem por status do dia (padrão: hoje) |
 | GET | `/ordens/minhas?data=` | motorista | Coletas do próprio motorista no dia (padrão: hoje) |
+| GET | `/ordens/disponiveis` | motorista | Coletas disponíveis de hoje em diante, da mais próxima para a mais distante |
+| POST | `/ordens/:id/aceitar` | motorista | Aceita a coleta disponível: `{ veiculoId }`. Responde 200 com a ordem, agora `AGUARDANDO` e do motorista; 409 se outro motorista aceitou antes ou se ela foi cancelada; 422 se o veículo estiver inativo |
 | GET | `/ordens/:id` | ambos | Detalhe com histórico; motorista só acessa as próprias |
 | PATCH | `/ordens/:id/status` | ambos | Altera o status: `{ status, motivo?, localizacao? }` |
 
 Toda ordem retornada traz `transicoesPermitidas`: os status para os quais o usuário atual pode movê-la. O frontend usa essa lista para exibir os botões, mantendo a regra de negócio só no backend.
+
+Enquanto a ordem está disponível, `motoristaId`, `veiculoId`, `motorista` e `veiculo` vêm `null`. A aceitação trava a linha da ordem no banco (`SELECT … FOR UPDATE`): se dois motoristas aceitarem ao mesmo tempo, o segundo espera o primeiro terminar e recebe 409 com a mensagem "Esta coleta já foi aceita por outro motorista.".
 
 ### Localização nas ações do motorista
 
@@ -83,5 +87,5 @@ O motorista recebe um aviso quando uma coleta é atribuída a ele e quando uma c
 | 401 | Token ausente, inválido ou expirado; credenciais incorretas |
 | 403 | Perfil sem permissão (ex.: motorista tentando cancelar) |
 | 404 | Recurso inexistente ou ordem de outro motorista |
-| 409 | Transição de status inválida; placa ou e-mail duplicado; pontos de trajeto sem coleta em andamento |
+| 409 | Transição de status inválida; placa ou e-mail duplicado; pontos de trajeto sem coleta em andamento; coleta disponível já aceita ou cancelada |
 | 422 | Regra de negócio: veículo/motorista/cliente inativo, data no passado |
