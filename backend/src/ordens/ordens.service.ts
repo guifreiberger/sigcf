@@ -7,12 +7,19 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, type FindOptionsWhere, Repository } from 'typeorm';
+import {
+  DataSource,
+  type EntityManager,
+  type FindOptionsWhere,
+  MoreThanOrEqual,
+  Repository,
+} from 'typeorm';
 import type { UsuarioAutenticado } from '../auth/usuario-autenticado.js';
 import { Cliente } from '../clientes/cliente.entity.js';
 import { hoje } from '../common/data.js';
 import {
   avisoColetaCancelada,
+  avisoColetaDisponivel,
   avisoNovaColeta,
 } from '../notificacoes/avisos.js';
 import { NotificacoesService } from '../notificacoes/notificacoes.service.js';
@@ -20,6 +27,7 @@ import { Perfil } from '../usuarios/perfil.enum.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
 import { Veiculo } from '../veiculos/veiculo.entity.js';
 import {
+  AceitarColetaDto,
   AlterarStatusDto,
   CriarOrdemDto,
   FiltroOrdensDto,
@@ -49,11 +57,20 @@ export class OrdensService {
   ) {}
 
   async criar(dto: CriarOrdemDto, gestor: UsuarioAutenticado) {
+    if ((dto.motoristaId == null) !== (dto.veiculoId == null)) {
+      throw new BadRequestException(
+        'Informe o motorista e o veículo, ou nenhum dos dois para disponibilizar a coleta.',
+      );
+    }
     if (dto.dataColeta < hoje()) {
       throw new UnprocessableEntityException(
         'A data da coleta não pode estar no passado.',
       );
     }
+    const disponivel = dto.motoristaId == null;
+    const statusInicial = disponivel
+      ? StatusOrdem.DISPONIVEL
+      : StatusOrdem.AGUARDANDO;
 
     const id = await this.dataSource.transaction(async (em) => {
       const cliente = await em.findOneBy(Cliente, {
@@ -65,36 +82,33 @@ export class OrdensService {
           'Cliente não encontrado ou inativo.',
         );
       }
-      const veiculo = await em.findOneBy(Veiculo, {
-        id: dto.veiculoId,
-        ativo: true,
-      });
-      if (!veiculo) {
-        throw new UnprocessableEntityException(
-          'Veículo não encontrado ou inativo.',
-        );
-      }
-      const motorista = await em.findOneBy(Usuario, {
-        id: dto.motoristaId,
-        perfil: Perfil.MOTORISTA,
-        ativo: true,
-      });
-      if (!motorista) {
-        throw new UnprocessableEntityException(
-          'Motorista não encontrado ou inativo.',
-        );
+      let veiculoId: number | null = null;
+      let motoristaId: number | null = null;
+      if (!disponivel) {
+        veiculoId = (await this.veiculoAtivo(em, dto.veiculoId!)).id;
+        const motorista = await em.findOneBy(Usuario, {
+          id: dto.motoristaId,
+          perfil: Perfil.MOTORISTA,
+          ativo: true,
+        });
+        if (!motorista) {
+          throw new UnprocessableEntityException(
+            'Motorista não encontrado ou inativo.',
+          );
+        }
+        motoristaId = motorista.id;
       }
 
       const ordem = await em.save(
         em.create(OrdemColeta, {
           clienteId: cliente.id,
-          veiculoId: veiculo.id,
-          motoristaId: motorista.id,
+          veiculoId,
+          motoristaId,
           criadoPorId: gestor.id,
           enderecoColeta: dto.enderecoColeta ?? cliente.endereco,
           dataColeta: dto.dataColeta,
           pesoEstimadoKg: dto.pesoEstimadoKg ?? null,
-          status: StatusOrdem.AGUARDANDO,
+          status: statusInicial,
           observacao: dto.observacao ?? null,
         }),
       );
@@ -102,18 +116,80 @@ export class OrdensService {
         ordemId: ordem.id,
         usuarioId: gestor.id,
         statusAnterior: null,
-        statusNovo: StatusOrdem.AGUARDANDO,
+        statusNovo: statusInicial,
         motivo: null,
       });
       return ordem.id;
     });
 
     const criada = await this.detalhar(id, gestor);
-    void this.notificacoes.enviarParaUsuario(
-      criada.motoristaId,
-      avisoNovaColeta(criada, hoje()),
-    );
+    if (criada.motoristaId == null) {
+      void this.notificacoes.enviarParaMotoristas(
+        avisoColetaDisponivel(criada, hoje()),
+      );
+    } else {
+      void this.notificacoes.enviarParaUsuario(
+        criada.motoristaId,
+        avisoNovaColeta(criada, hoje()),
+      );
+    }
     return criada;
+  }
+
+  async disponiveis() {
+    const ordens = await this.ordens.find({
+      where: {
+        status: StatusOrdem.DISPONIVEL,
+        dataColeta: MoreThanOrEqual(hoje()),
+      },
+      relations: { cliente: true },
+      order: { dataColeta: 'ASC', id: 'ASC' },
+    });
+    return ordens.map((o) => this.comTransicoes(o, Perfil.MOTORISTA));
+  }
+
+  // A trava na linha da ordem garante que, se dois motoristas aceitarem ao mesmo tempo,
+  // o segundo espere o primeiro terminar e encontre a coleta já aceita.
+  async aceitar(
+    id: number,
+    dto: AceitarColetaDto,
+    motorista: UsuarioAutenticado,
+  ) {
+    await this.dataSource.transaction(async (em) => {
+      const ordem = await em.findOne(OrdemColeta, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!ordem) {
+        throw new NotFoundException('Ordem de coleta não encontrada.');
+      }
+      if (ordem.status !== StatusOrdem.DISPONIVEL) {
+        if (ordem.motoristaId === motorista.id) {
+          throw new ConflictException('Você já aceitou esta coleta.');
+        }
+        throw new ConflictException(
+          ordem.motoristaId == null
+            ? 'Esta coleta não está mais disponível.'
+            : 'Esta coleta já foi aceita por outro motorista.',
+        );
+      }
+      const veiculo = await this.veiculoAtivo(em, dto.veiculoId);
+
+      await em.update(OrdemColeta, ordem.id, {
+        motoristaId: motorista.id,
+        veiculoId: veiculo.id,
+        status: StatusOrdem.AGUARDANDO,
+      });
+      await em.insert(HistoricoStatus, {
+        ordemId: ordem.id,
+        usuarioId: motorista.id,
+        statusAnterior: StatusOrdem.DISPONIVEL,
+        statusNovo: StatusOrdem.AGUARDANDO,
+        motivo: null,
+      });
+    });
+
+    return this.detalhar(id, motorista);
   }
 
   async listar(filtros: FiltroOrdensDto, usuario: UsuarioAutenticado) {
@@ -201,7 +277,10 @@ export class OrdensService {
     });
 
     const atualizada = await this.detalhar(id, usuario);
-    if (dto.status === StatusOrdem.CANCELADA) {
+    if (
+      dto.status === StatusOrdem.CANCELADA &&
+      atualizada.motoristaId != null
+    ) {
       void this.notificacoes.enviarParaUsuario(
         atualizada.motoristaId,
         avisoColetaCancelada(atualizada, hoje(), dto.motivo?.trim() ?? ''),
@@ -226,6 +305,16 @@ export class OrdensService {
 
     const total = Object.values(porStatus).reduce((a, b) => a + b, 0);
     return { data, total, porStatus };
+  }
+
+  private async veiculoAtivo(em: EntityManager, id: number) {
+    const veiculo = await em.findOneBy(Veiculo, { id, ativo: true });
+    if (!veiculo) {
+      throw new UnprocessableEntityException(
+        'Veículo não encontrado ou inativo.',
+      );
+    }
+    return veiculo;
   }
 
   private podeVer(ordem: OrdemColeta, usuario: UsuarioAutenticado) {

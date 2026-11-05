@@ -95,13 +95,14 @@ export class RastreamentoService {
       order: { id: 'ASC', historico: { id: 'ASC' } },
     });
 
+    // Uma coleta só entra em andamento depois de ter motorista e veículo definidos.
     return Promise.all(
       ordens.map(async (ordem) => ({
         ordemId: ordem.id,
-        motorista: { id: ordem.motorista.id, nome: ordem.motorista.nome },
+        motorista: { id: ordem.motorista!.id, nome: ordem.motorista!.nome },
         cliente: ordem.cliente.nome,
         enderecoColeta: ordem.enderecoColeta,
-        placa: ordem.veiculo.placa,
+        placa: ordem.veiculo!.placa,
         inicio: periodoDaCorrida(ordem.historico).inicio,
         ultimaPosicao: await this.ultimaPosicao(ordem.id),
       })),
