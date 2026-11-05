@@ -8,7 +8,7 @@ O SIGCF roda no **Azure Container Apps**, com a infraestrutura descrita em **Ter
 |---|---|---|---|
 | Desenvolvimento | Computador do desenvolvedor | Código local | Docker Compose ([README](../README.md#como-executar-localmente)) |
 | Homologação | Azure, app `sigcf-homologacao` | Push na `develop` | Desliga sem acessos e acorda no primeiro (custo perto de zero); dados de demonstração |
-| Produção | Azure, app `sigcf` | Push na `main`, **após aprovação** | Sempre ligada, com teste de disponibilidade e alerta |
+| Produção | Azure, app `sigcf` | Push na `main`, **após aprovação** | Dorme sem acessos por padrão; nos períodos de avaliação fica **sempre ligada**, com teste de disponibilidade e alerta (ver abaixo) |
 
 A região é a do **Chile (chilecentral)**: a assinatura Azure for Students só permite algumas regiões, e essa é a mais próxima do Brasil. Duas particularidades da assinatura moldaram a infraestrutura:
 
@@ -139,6 +139,15 @@ Cada implantação usa a tag do commit. Para voltar:
 - **Pela linha de comando:** `terraform -chdir=infra/app apply -var ambiente=producao -var versao=<sha do commit>`, depois do `init` com a chave `app-producao.tfstate`.
 
 O banco não volta junto: migrations são escritas para serem compatíveis com a versão anterior, ou revertidas com `npm run migration:revert`.
+
+### Deixar a produção sempre ligada (períodos de avaliação)
+
+Para economizar crédito, a produção dorme quando ninguém usa, como a homologação: o link funciona, mas o primeiro acesso depois de um tempo parado leva de 20 a 30 segundos. Antes da entrega, da prova de autoria e do Demo Day, deixe-a sempre ligada:
+
+1. No GitHub, em *Settings* → *Secrets and variables* → *Actions* → *Variables*, mude `PRODUCAO_SEMPRE_LIGADA` para `true` (ou `gh variable set PRODUCAO_SEMPRE_LIGADA -b true`).
+2. Reimplante a produção: na aba *Actions*, abra a última execução da `main` e use *Re-run jobs* no job `Implantação`, aprovando quando pedido.
+
+Com a variável em `true`, a produção mantém uma réplica ativa e ganha o teste de disponibilidade com o alerta por e-mail. Para voltar ao modo econômico, mude para `false` e reimplante.
 
 ### Acompanhar os custos
 

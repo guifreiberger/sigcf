@@ -10,7 +10,7 @@ Como o SIGCF é monitorado em produção: o que é coletado, onde consultar e qu
 | **Erros e avisos da aplicação** (falha ao enviar push, exceções não tratadas) | Logger do NestJS, também em JSON | Mesma tabela |
 | **Eventos dos containers** (início, reinício, falha no health check, escala) | Azure Container Apps | `ContainerAppSystemLogs_CL` |
 | **Métricas** (requisições, CPU, memória, réplicas) | Azure Container Apps | Aba *Métricas* do app no portal |
-| **Disponibilidade** (health check, que também testa o banco, a cada 5 min de 3 regiões) | Teste padrão do Application Insights, só na produção | `AppAvailabilityResults` |
+| **Disponibilidade** (health check, que também testa o banco, a cada 15 min de 2 regiões) | Teste padrão do Application Insights, só com a produção sempre ligada | `AppAvailabilityResults` |
 
 A query string não é registrada, porque pode conter filtros com dados de clientes. O health check bem-sucedido também não, para não encher o log a cada poucos segundos.
 
@@ -18,7 +18,7 @@ A query string não é registrada, porque pode conter filtros com dados de clien
 
 | Alerta | Condição | Aviso |
 |---|---|---|
-| Produção fora do ar | Health check falhando em 2 das 3 regiões | E-mail ao responsável (grupo de ação `ag-sigcf`) |
+| Produção fora do ar | Health check falhando nas 2 regiões do teste (com a produção sempre ligada) | E-mail ao responsável (grupo de ação `ag-sigcf`) |
 | Gasto | 50% do orçamento mensal atingido, ou previsão do mês acima de 100% | E-mail ao responsável |
 | Container doente | `/api/health` falhando (inclui o banco) | O Container Apps reinicia o container sozinho (*liveness probe*) |
 
@@ -102,4 +102,4 @@ AppAvailabilityResults
 
 ## Custos da observabilidade
 
-O Log Analytics tem teto de **0,5 GB de ingestão por dia** e retenção de 30 dias, o que mantém o custo dentro da cota gratuita mensal. O teste de disponibilidade roda só na produção: na homologação, ele manteria o app sempre ligado.
+O Log Analytics tem teto de **0,5 GB de ingestão por dia** e retenção de 30 dias, o que mantém o custo dentro da cota gratuita mensal. O teste de disponibilidade é cobrado por execução: por isso roda a cada 15 minutos, de duas regiões, e só quando a produção está sempre ligada (com o app dormindo, cada teste o acordaria).
