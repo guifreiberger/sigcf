@@ -7,7 +7,7 @@ export function TabelaOrdens({ ordens, mostrarData = false }: { ordens: Ordem[];
   const navegar = useNavigate()
 
   return (
-    <div className="tabela-rolagem">
+    <div className="tabela-rolagem" tabIndex={0} role="region" aria-label="Ordens de coleta">
       <table className="tabela tabela--clicavel">
         <thead>
           <tr>
