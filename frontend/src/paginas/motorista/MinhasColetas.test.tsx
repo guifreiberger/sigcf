@@ -1,12 +1,27 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { lerSessao } from '../../api/cliente.ts'
 import type { Ordem } from '../../api/tipos.ts'
 import { apiFalsa, corpoEnviado } from '../../testes/apiFalsa.ts'
 import { renderizar, sessaoDe } from '../../testes/renderizar.tsx'
 import { hojeLocal } from '../../util/formatos.ts'
 import { MinhasColetas } from './MinhasColetas.tsx'
+
+// Por padrão a tela roda como no navegador; os testes do app Android ligam o modo nativo.
+const app = vi.hoisted(() => ({
+  nativo: false,
+  aoFalhar: null as ((motivo: 'sem-permissao' | 'outro') => void) | null,
+  abrirConfiguracoes: vi.fn(),
+}))
+vi.mock('../../nativo/plataforma.ts', () => ({ ehAppNativo: () => app.nativo }))
+vi.mock('../../nativo/gpsEmSegundoPlano.ts', () => ({
+  acompanharEmSegundoPlano: (_aoLer: unknown, aoFalhar: typeof app.aoFalhar) => {
+    app.aoFalhar = aoFalhar
+    return () => {}
+  },
+  abrirConfiguracoesDoApp: app.abrirConfiguracoes,
+}))
 
 const MINHAS = `GET /ordens/minhas?data=${hojeLocal()}`
 
@@ -233,6 +248,36 @@ describe('MinhasColetas', () => {
       expect(corpoEnviado(fetchFalso, 'POST /rastreamento/pontos').pontos).toEqual([
         expect.objectContaining({ latitude: -26.4851, longitude: -49.0713, precisaoMetros: 9 }),
       ])
+    })
+
+    describe('no app Android', () => {
+      beforeEach(() => {
+        app.nativo = true
+      })
+
+      afterEach(() => {
+        app.nativo = false
+        app.abrirConfiguracoes.mockReset()
+      })
+
+      it('diz que o motorista pode usar o celular, porque o trajeto segue em segundo plano', async () => {
+        apiFalsa({ [MINHAS]: { corpo: [emAndamento] } })
+        abrir()
+
+        expect(await screen.findByText(/Pode usar o celular normalmente/)).toBeInTheDocument()
+        expect(screen.queryByText(/A tela fica ligada/)).not.toBeInTheDocument()
+      })
+
+      it('leva às configurações do app quando a localização não foi liberada', async () => {
+        apiFalsa({ [MINHAS]: { corpo: [emAndamento] } })
+        abrir()
+        await screen.findByText('Malwee')
+
+        act(() => app.aoFalhar?.('sem-permissao'))
+        await userEvent.click(await screen.findByRole('button', { name: 'Abrir configurações' }))
+
+        expect(app.abrirConfiguracoes).toHaveBeenCalled()
+      })
     })
 
     it('orienta a liberar o GPS quando o celular não permite', async () => {
