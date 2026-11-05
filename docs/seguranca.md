@@ -25,3 +25,13 @@ O sistema trata só o necessário à operação: nome, e-mail, telefone, CNH opc
 
 - **Token de usuário desativado:** o token é verificado pela assinatura, sem consultar o banco a cada requisição. Um motorista desativado continua com acesso até o token expirar (no máximo 8 horas). Se isso for crítico para a empresa, a saída é reduzir a validade do token ou consultar o status do usuário no guard.
 - **Limite de login em memória:** a contagem de tentativas fica na memória da instância. Com mais de uma réplica da API, cada uma conta separadamente; nesse cenário, a contagem passaria para um armazenamento compartilhado, como o Redis.
+
+## Decisões de infraestrutura
+
+A análise estática (SonarCloud) aponta três pontos no Terraform que foram avaliados e mantidos de propósito. Eles ficam registrados como exceções no [`sonar-project.properties`](../sonar-project.properties), sempre restritas ao arquivo `infra/base/main.tf`:
+
+| Apontamento | Por que foi mantido | Evolução possível |
+|---|---|---|
+| MySQL com acesso pela rede pública (`terraform:S6329`) | O firewall só aceita conexões vindas de serviços do Azure, toda conexão exige TLS e a senha é gerada pelo Terraform, sem ser exposta. Rede privada exigiria integrar o ambiente de containers a uma rede virtual, com custo e complexidade fora do orçamento do TCC | Rede virtual com *private endpoint* para o banco |
+| MySQL sem identidade gerenciada (`terraform:S6378`) | A identidade no servidor MySQL só é necessária para criptografar com chave própria ou para autenticar pelo Entra ID. A API se conecta com usuário e senha guardados como *secret* do Container Apps | Autenticação da API no banco pelo Entra ID |
+| Papel Contributor para a identidade de implantação (`terraform:S6381`) | O papel vale só para o grupo de recursos `rg-sigcf`, e a identidade só pode ser usada por jobs dos ambientes `homologacao` e `producao` do GitHub; a produção ainda exige aprovação manual | Trocar por papéis mais restritos (Container Apps, monitoramento e operador de identidade) |
