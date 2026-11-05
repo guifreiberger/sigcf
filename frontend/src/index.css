@@ -27,11 +27,13 @@
   --borda-forte: #d6d3cd;
   --texto: #18181b;
   --texto-suave: #5f5f67;
-  --texto-fraco: #8b8b93;
+  /* Contraste de 4,9:1 sobre o fundo e 5,3:1 sobre branco (WCAG AA pede 4,5:1). */
+  --texto-fraco: #6b6b73;
   --perigo: #b91c1c;
   --perigo-fundo: #fee2e2;
   --sucesso: #15803d;
   --sucesso-forte: #16a34a;
+  --sucesso-escuro: #166534;
   --aviso-fundo: #fef9c3;
   --aviso-texto: #854d0e;
 
@@ -230,13 +232,14 @@ svg.lucide {
   background: #fef2f2;
 }
 
+/* Branco sobre o verde mais claro ficava com contraste de 3,3:1; sobre este, passa de 5:1. */
 .botao--sucesso {
-  background: var(--sucesso-forte);
+  background: var(--sucesso);
   color: #fff;
 }
 
 .botao--sucesso:hover:not(:disabled) {
-  background: var(--sucesso);
+  background: var(--sucesso-escuro);
 }
 
 .botao--largo {
@@ -1452,10 +1455,12 @@ svg.lucide {
 .coleta--falha { --cor: #ef4444; }
 .coleta--cancelada { --cor: var(--grafite-400); }
 
+/* Finalizadas ficam discretas pelo fundo, sem transparência, para o texto manter o contraste. */
 .coleta--concluida,
 .coleta--falha,
 .coleta--cancelada {
-  opacity: 0.78;
+  background: var(--superficie-2);
+  box-shadow: inset 4px 0 0 var(--cor, var(--borda));
 }
 
 .coleta__topo {
@@ -1654,7 +1659,6 @@ svg.lucide {
 
 .rastreio small {
   margin-top: 0.2rem;
-  opacity: 0.85;
 }
 
 /* O Leaflet usa z-index alto nas camadas; o contexto próprio evita que o mapa cubra o menu. */
