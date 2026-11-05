@@ -11,6 +11,7 @@ import {
   Phone,
   Play,
   RefreshCw,
+  Settings,
   TriangleAlert,
   Truck,
   Weight,
@@ -32,6 +33,8 @@ import {
   iniciais,
   linkMapa,
 } from '../../util/formatos.ts'
+import { abrirConfiguracoesDoApp } from '../../nativo/gpsEmSegundoPlano.ts'
+import { ehAppNativo } from '../../nativo/plataforma.ts'
 import { localizacaoBloqueada, obterLocalizacao } from '../../util/localizacao.ts'
 import { AvisosColetas } from './AvisosColetas.tsx'
 import { ColetasDisponiveis } from './ColetasDisponiveis.tsx'
@@ -65,7 +68,11 @@ export function MinhasColetas() {
   const hoje = hojeLocal()
   const coletas = useMinhasColetas(hoje)
   const alterar = useAlterarStatus()
-  const rastreamento = useRastreamento(coletas.data?.some((o) => o.status === 'EM_ANDAMENTO') ?? false)
+  // Se o gestor cancelar a coleta, o servidor recusa as posições; a lista é atualizada e o
+  // rastreamento para, mesmo com o app em segundo plano.
+  const rastreamento = useRastreamento(coletas.data?.some((o) => o.status === 'EM_ANDAMENTO') ?? false, () => {
+    void coletas.refetch()
+  })
   const [acao, setAcao] = useState<Acao>(null)
   const [localizando, setLocalizando] = useState<number | null>(null)
   const [semPermissao, setSemPermissao] = useState(false)
@@ -232,6 +239,14 @@ function Compartilhamento({ estado, pendentes }: { estado: EstadoRastreamento; p
   if (estado === 'desligado') return null
   const semGps = estado === 'sem-gps'
   const Icone = semGps ? LocateOff : LocateFixed
+  const noApp = ehAppNativo()
+  const orientacao = semGps
+    ? noApp
+      ? 'Libere a localização do SIGCF nas configurações do celular para o gestor acompanhar a coleta.'
+      : 'Libere a localização do navegador para o gestor acompanhar a coleta.'
+    : noApp
+      ? 'Pode usar o celular normalmente: a localização continua sendo enviada até você concluir a coleta.'
+      : 'A tela fica ligada até você concluir ou reportar falha na coleta.'
 
   return (
     <section className={`rastreio ${semGps ? 'rastreio--alerta' : ''}`} role="status">
@@ -246,15 +261,19 @@ function Compartilhamento({ estado, pendentes }: { estado: EstadoRastreamento; p
               ? 'Procurando o sinal do GPS…'
               : 'Compartilhando sua localização com o gestor'}
         </strong>
-        {semGps
-          ? 'Libere a localização do navegador para o gestor acompanhar a coleta.'
-          : 'A tela fica ligada até você concluir ou reportar falha na coleta.'}
+        {orientacao}
         {pendentes > 0 && (
           <small>
             {pendentes === 1 ? '1 posição aguardando' : `${pendentes} posições aguardando`} conexão para envio
           </small>
         )}
       </p>
+      {semGps && noApp && (
+        <button type="button" className="botao botao--secundario botao--pequeno" onClick={() => void abrirConfiguracoesDoApp()}>
+          <Settings size={16} aria-hidden />
+          Abrir configurações
+        </button>
+      )}
     </section>
   )
 }
