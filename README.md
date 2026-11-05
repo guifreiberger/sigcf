@@ -148,6 +148,7 @@ O relatório de cobertura fica em `coverage/lcov-report/index.html` de cada proj
 | [`docs/der.md`](docs/der.md) | Modelo de dados, decisões de modelagem e máquina de estados da ordem |
 | [`docs/api.md`](docs/api.md) | Endpoints da API, perfis de acesso e códigos de erro |
 | [`docs/inteligencia.md`](docs/inteligencia.md) | Metodologia da tela de inteligência: recorrência, previsão, alertas e tendência de peso |
+| [`docs/acessibilidade.md`](docs/acessibilidade.md) | Auditoria WCAG 2.1 AA: método, problemas corrigidos e testes automáticos |
 | [`docs/seguranca.md`](docs/seguranca.md) | Medidas de segurança organizadas pelo OWASP Top 10 e limitações conhecidas |
 | [`docs/rastreamento.md`](docs/rastreamento.md) | Trajeto da coleta: envio da posição, cálculo de distância e duração, privacidade e limitações |
 | [`docs/desempenho.md`](docs/desempenho.md) | Medição do requisito de 300 ms e teste de volume com 200 mil ordens |
