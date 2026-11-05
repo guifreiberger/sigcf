@@ -28,14 +28,30 @@ const formatarKg = (kg: number) =>
 // A mesma tag por ordem faz o aviso de cancelamento substituir o de nova coleta no celular.
 const tag = (ordem: OrdemDoAviso) => `ordem-${ordem.id}`;
 
-export function avisoNovaColeta(ordem: OrdemDoAviso, hoje: string): Aviso {
+function descricao(ordem: OrdemDoAviso, hoje: string) {
   const peso =
     ordem.pesoEstimadoKg != null
       ? ` · cerca de ${formatarKg(ordem.pesoEstimadoKg)}`
       : '';
+  return `${ordem.cliente.nome}, ${quando(ordem.dataColeta, hoje)}${peso}\n${ordem.enderecoColeta}`;
+}
+
+export function avisoNovaColeta(ordem: OrdemDoAviso, hoje: string): Aviso {
   return {
     titulo: 'Nova coleta para você',
-    corpo: `${ordem.cliente.nome}, ${quando(ordem.dataColeta, hoje)}${peso}\n${ordem.enderecoColeta}`,
+    corpo: descricao(ordem, hoje),
+    url: '/motorista',
+    tag: tag(ordem),
+  };
+}
+
+export function avisoColetaDisponivel(
+  ordem: OrdemDoAviso,
+  hoje: string,
+): Aviso {
+  return {
+    titulo: 'Coleta disponível: quem pega?',
+    corpo: descricao(ordem, hoje),
     url: '/motorista',
     tag: tag(ordem),
   };

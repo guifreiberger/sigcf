@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Perfil } from '../usuarios/perfil.enum.js';
 import type { Aviso } from './avisos.js';
 import { InscricaoPushDto } from './dto/inscricao-push.dto.js';
 import { EnviadorPush } from './enviador-push.js';
@@ -36,11 +37,26 @@ export class NotificacoesService {
     await this.inscricoes.delete({ usuarioId, endpoint });
   }
 
+  enviarParaUsuario(usuarioId: number, aviso: Aviso) {
+    return this.enviar(aviso, () => this.inscricoes.findBy({ usuarioId }));
+  }
+
+  enviarParaMotoristas(aviso: Aviso) {
+    return this.enviar(aviso, () =>
+      this.inscricoes.find({
+        where: { usuario: { perfil: Perfil.MOTORISTA, ativo: true } },
+      }),
+    );
+  }
+
   // Nunca rejeita: a falha de um aviso não pode desfazer a operação que o originou.
-  async enviarParaUsuario(usuarioId: number, aviso: Aviso) {
+  private async enviar(
+    aviso: Aviso,
+    buscarDestinos: () => Promise<InscricaoPush[]>,
+  ) {
     if (!this.enviador.chavePublica) return;
     try {
-      const destinos = await this.inscricoes.findBy({ usuarioId });
+      const destinos = await buscarDestinos();
       const conteudo = JSON.stringify(aviso);
       await Promise.all(
         destinos.map(async (destino) => {
