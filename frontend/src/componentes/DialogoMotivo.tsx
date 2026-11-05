@@ -63,7 +63,6 @@ function FormularioMotivo({
           maxLength={255}
           rows={3}
           required
-          autoFocus
         />
       </label>
       <MensagemErro erro={erro} />
