@@ -20,13 +20,16 @@ export class CriarOrdemDto {
   @IsPositive()
   clienteId: number;
 
+  // Sem motorista e veículo, a coleta é publicada para os motoristas (RF12).
+  @IsOptional()
   @IsInt()
   @IsPositive()
-  veiculoId: number;
+  veiculoId?: number;
 
+  @IsOptional()
   @IsInt()
   @IsPositive()
-  motoristaId: number;
+  motoristaId?: number;
 
   @IsData()
   dataColeta: string;
@@ -47,6 +50,12 @@ export class CriarOrdemDto {
   @IsString()
   @MaxLength(2000)
   observacao?: string;
+}
+
+export class AceitarColetaDto {
+  @IsInt()
+  @IsPositive()
+  veiculoId: number;
 }
 
 export class LocalizacaoDto {

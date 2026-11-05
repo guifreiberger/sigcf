@@ -27,14 +27,18 @@
   --borda-forte: #d6d3cd;
   --texto: #18181b;
   --texto-suave: #5f5f67;
-  --texto-fraco: #8b8b93;
+  /* Contraste de 4,9:1 sobre o fundo e 5,3:1 sobre branco (WCAG AA pede 4,5:1). */
+  --texto-fraco: #6b6b73;
   --perigo: #b91c1c;
   --perigo-fundo: #fee2e2;
   --sucesso: #15803d;
   --sucesso-forte: #16a34a;
+  --sucesso-escuro: #166534;
   --aviso-fundo: #fef9c3;
   --aviso-texto: #854d0e;
 
+  --st-disponivel: #6d28d9;
+  --st-disponivel-fundo: #ede9fe;
   --st-aguardando: #854d0e;
   --st-aguardando-fundo: #fef9c3;
   --st-em_andamento: #1d4ed8;
@@ -74,6 +78,7 @@ body {
 
 h1,
 h2,
+h3,
 p {
   margin: 0;
 }
@@ -230,13 +235,14 @@ svg.lucide {
   background: #fef2f2;
 }
 
+/* Branco sobre o verde mais claro ficava com contraste de 3,3:1; sobre este, passa de 5:1. */
 .botao--sucesso {
-  background: var(--sucesso-forte);
+  background: var(--sucesso);
   color: #fff;
 }
 
 .botao--sucesso:hover:not(:disabled) {
-  background: var(--sucesso);
+  background: var(--sucesso-escuro);
 }
 
 .botao--largo {
@@ -436,6 +442,11 @@ svg.lucide {
   color: var(--aviso-texto);
 }
 
+.alerta--sucesso {
+  background: var(--st-concluida-fundo);
+  color: var(--sucesso-escuro);
+}
+
 .estado {
   display: flex;
   justify-content: center;
@@ -496,6 +507,7 @@ svg.lucide {
   background: currentColor;
 }
 
+.badge--disponivel { color: var(--st-disponivel); background: var(--st-disponivel-fundo); }
 .badge--aguardando { color: var(--st-aguardando); background: var(--st-aguardando-fundo); }
 .badge--em_andamento { color: var(--st-em_andamento); background: var(--st-em_andamento-fundo); }
 .badge--concluida { color: var(--st-concluida); background: var(--st-concluida-fundo); }
@@ -869,13 +881,13 @@ svg.lucide {
 
 .resumo {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.9rem;
 }
 
-@media (min-width: 1440px) {
+@media (min-width: 1600px) {
   .resumo {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 }
 
@@ -948,6 +960,7 @@ svg.lucide {
 
 .resumo__cartao--total .resumo__texto span { color: var(--grafite-400); }
 .resumo__cartao--total .resumo__texto strong { color: #fff; }
+.resumo__cartao--disponivel { --cor: var(--st-disponivel); --fundo-cor: var(--st-disponivel-fundo); }
 .resumo__cartao--aguardando { --cor: var(--st-aguardando); --fundo-cor: var(--st-aguardando-fundo); }
 .resumo__cartao--em_andamento { --cor: var(--st-em_andamento); --fundo-cor: var(--st-em_andamento-fundo); }
 .resumo__cartao--concluida { --cor: var(--st-concluida); --fundo-cor: var(--st-concluida-fundo); }
@@ -963,6 +976,7 @@ svg.lucide {
   background: var(--borda);
 }
 
+.barra-status__parte--disponivel { background: #8b5cf6; }
 .barra-status__parte--aguardando { background: var(--amarelo-500); }
 .barra-status__parte--em_andamento { background: #3b82f6; }
 .barra-status__parte--concluida { background: #22c55e; }
@@ -1229,6 +1243,7 @@ svg.lucide {
   color: var(--cor);
 }
 
+.linha-tempo__item--disponivel { --cor: var(--st-disponivel); --fundo-cor: var(--st-disponivel-fundo); }
 .linha-tempo__item--aguardando { --cor: var(--st-aguardando); --fundo-cor: var(--st-aguardando-fundo); }
 .linha-tempo__item--em_andamento { --cor: var(--st-em_andamento); --fundo-cor: var(--st-em_andamento-fundo); }
 .linha-tempo__item--concluida { --cor: var(--st-concluida); --fundo-cor: var(--st-concluida-fundo); }
@@ -1426,6 +1441,69 @@ svg.lucide {
   flex-basis: 100%;
 }
 
+.opcoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.opcoes legend {
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.opcao {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-sm);
+  cursor: pointer;
+}
+
+.opcao:has(input:checked) {
+  border-color: var(--grafite-900);
+  box-shadow: inset 0 0 0 1px var(--grafite-900);
+}
+
+.opcao input {
+  margin-top: 0.2rem;
+  accent-color: var(--grafite-900);
+}
+
+.opcao span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.opcao small {
+  color: var(--texto-suave);
+  font-size: 0.82rem;
+}
+
+.disponiveis {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.disponiveis__topo h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1.05rem;
+  color: var(--st-disponivel);
+}
+
+.disponiveis__topo p {
+  font-size: 0.88rem;
+  color: var(--texto-suave);
+}
+
 .coletas {
   list-style: none;
   margin: 0;
@@ -1446,16 +1524,19 @@ svg.lucide {
     var(--sombra);
 }
 
+.coleta--disponivel { --cor: #8b5cf6; }
 .coleta--aguardando { --cor: var(--amarelo-500); }
 .coleta--em_andamento { --cor: #3b82f6; }
 .coleta--concluida { --cor: #22c55e; }
 .coleta--falha { --cor: #ef4444; }
 .coleta--cancelada { --cor: var(--grafite-400); }
 
+/* Finalizadas ficam discretas pelo fundo, sem transparência, para o texto manter o contraste. */
 .coleta--concluida,
 .coleta--falha,
 .coleta--cancelada {
-  opacity: 0.78;
+  background: var(--superficie-2);
+  box-shadow: inset 4px 0 0 var(--cor, var(--borda));
 }
 
 .coleta__topo {
@@ -1654,7 +1735,6 @@ svg.lucide {
 
 .rastreio small {
   margin-top: 0.2rem;
-  opacity: 0.85;
 }
 
 /* O Leaflet usa z-index alto nas camadas; o contexto próprio evita que o mapa cubra o menu. */

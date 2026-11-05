@@ -34,14 +34,16 @@ import {
 } from '../../util/formatos.ts'
 import { localizacaoBloqueada, obterLocalizacao } from '../../util/localizacao.ts'
 import { AvisosColetas } from './AvisosColetas.tsx'
+import { ColetasDisponiveis } from './ColetasDisponiveis.tsx'
 import { type EstadoRastreamento, useRastreamento } from './useRastreamento.ts'
 
 const PRIORIDADE: Record<StatusOrdem, number> = {
   EM_ANDAMENTO: 0,
   AGUARDANDO: 1,
-  FALHA: 2,
-  CONCLUIDA: 3,
-  CANCELADA: 4,
+  DISPONIVEL: 2,
+  FALHA: 3,
+  CONCLUIDA: 4,
+  CANCELADA: 5,
 }
 
 const MOTIVOS_FALHA = [
@@ -69,7 +71,7 @@ export function MinhasColetas() {
   const [semPermissao, setSemPermissao] = useState(false)
 
   useEffect(() => {
-    localizacaoBloqueada().then(setSemPermissao)
+    void localizacaoBloqueada().then(setSemPermissao)
   }, [])
 
   const enviando = localizando !== null || alterar.isPending
@@ -92,7 +94,7 @@ export function MinhasColetas() {
     // Depois de finalizar, o servidor recusa pontos; então o que estiver na fila vai antes.
     if (status !== 'EM_ANDAMENTO') await rastreamento.enviarPendentes()
     setLocalizando(null)
-    if (!localizacao) localizacaoBloqueada().then(setSemPermissao)
+    if (!localizacao) void localizacaoBloqueada().then(setSemPermissao)
     alterar.mutate(
       { id: ordem.id, status, motivo, localizacao: localizacao ?? undefined },
       { onSuccess: () => setAcao(null) },
@@ -159,6 +161,7 @@ export function MinhasColetas() {
 
         <Compartilhamento estado={rastreamento.estado} pendentes={rastreamento.pendentes} />
         <AvisosColetas />
+        <ColetasDisponiveis />
 
         <MensagemErro erro={coletas.error} />
         {!acao && <MensagemErro erro={alterar.error} />}
@@ -296,10 +299,12 @@ function CartaoColeta({ ordem, ocupado, rotuloOcupado, aoIniciar, aoConcluir, ao
       </div>
 
       <p className="coleta__meta">
-        <span>
-          <Truck size={15} aria-hidden />
-          {formatarPlaca(ordem.veiculo.placa)} · {ordem.veiculo.modelo}
-        </span>
+        {ordem.veiculo && (
+          <span>
+            <Truck size={15} aria-hidden />
+            {formatarPlaca(ordem.veiculo.placa)} · {ordem.veiculo.modelo}
+          </span>
+        )}
         {ordem.pesoEstimadoKg != null && (
           <span>
             <Weight size={15} aria-hidden />

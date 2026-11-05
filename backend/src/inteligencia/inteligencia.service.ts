@@ -47,7 +47,9 @@ export class InteligenciaService {
 
     const analises = clientes.map((cliente) => {
       const doCliente = porCliente.get(cliente.id) ?? [];
-      const datas = doCliente.map((o) => o.dataColeta).sort();
+      const datas = doCliente
+        .map((o) => o.dataColeta)
+        .sort((a, b) => a.localeCompare(b));
       const realizadas = datas.filter((d) => d <= hoje);
       const ultimaColeta = realizadas.at(-1) ?? null;
       const recorrencia = classificarRecorrencia(realizadas);

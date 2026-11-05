@@ -17,14 +17,15 @@ export function AvisosColetas() {
   const [erro, setErro] = useState<unknown>(null)
 
   useEffect(() => {
-    estadoAvisos().then(setEstado)
+    // Se o navegador falhar ao consultar o service worker, trata como sem suporte a avisos.
+    estadoAvisos().then(setEstado, () => setEstado('indisponivel'))
   }, [])
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
     const aoReceber = (evento: MessageEvent) => {
       if (evento.data?.tipo === 'sigcf:atualizar') {
-        queryClient.invalidateQueries({ queryKey: ['minhas'] })
+        for (const chave of ['minhas', 'disponiveis']) queryClient.invalidateQueries({ queryKey: [chave] })
       }
     }
     navigator.serviceWorker.addEventListener('message', aoReceber)

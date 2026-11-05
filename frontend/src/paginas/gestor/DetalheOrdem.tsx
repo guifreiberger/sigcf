@@ -94,16 +94,32 @@ export function DetalheOrdem() {
               Motorista
             </dt>
             <dd>
-              {o.motorista?.nome}
-              <small className="texto-suave bloco">{formatarTelefone(o.motorista?.telefone ?? null)}</small>
+              {o.motorista ? (
+                <>
+                  {o.motorista.nome}
+                  <small className="texto-suave bloco">{formatarTelefone(o.motorista.telefone)}</small>
+                </>
+              ) : (
+                <span className="texto-suave">
+                  {o.status === 'DISPONIVEL'
+                    ? 'Ninguém ainda: o primeiro motorista que aceitar fica com a coleta'
+                    : 'Nenhum'}
+                </span>
+              )}
             </dd>
             <dt>
               <Truck size={16} aria-hidden />
               Veículo
             </dt>
             <dd>
-              {formatarPlaca(o.veiculo.placa)} — {o.veiculo.modelo}
-              <small className="texto-suave bloco">Capacidade {formatarKg(o.veiculo.capacidadeKg)}</small>
+              {o.veiculo ? (
+                <>
+                  {formatarPlaca(o.veiculo.placa)} — {o.veiculo.modelo}
+                  <small className="texto-suave bloco">Capacidade {formatarKg(o.veiculo.capacidadeKg)}</small>
+                </>
+              ) : (
+                <span className="texto-suave">Escolhido pelo motorista ao aceitar</span>
+              )}
             </dd>
             {o.observacao && (
               <>

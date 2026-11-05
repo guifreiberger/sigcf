@@ -28,7 +28,11 @@ const REGRAS: Regra[] = [
     exigeMotivo: true,
   },
   {
-    de: [StatusOrdem.AGUARDANDO, StatusOrdem.EM_ANDAMENTO],
+    de: [
+      StatusOrdem.DISPONIVEL,
+      StatusOrdem.AGUARDANDO,
+      StatusOrdem.EM_ANDAMENTO,
+    ],
     para: StatusOrdem.CANCELADA,
     perfil: Perfil.GESTOR,
     exigeMotivo: true,

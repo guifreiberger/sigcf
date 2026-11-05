@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, LoaderCircle } from 'lucide-react'
+import { Check, ChevronLeft, LoaderCircle, Megaphone } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useCadastro, useCriarOrdem } from '../../api/consultas.ts'
@@ -14,6 +14,7 @@ export function NovaOrdem() {
   const criar = useCriarOrdem()
 
   const [clienteId, setClienteId] = useState(parametros.get('clienteId') ?? '')
+  const [disponibilizar, setDisponibilizar] = useState(false)
   const [veiculoId, setVeiculoId] = useState('')
   const [motoristaId, setMotoristaId] = useState('')
   const [dataColeta, setDataColeta] = useState(parametros.get('data') ?? hojeLocal())
@@ -29,8 +30,9 @@ export function NovaOrdem() {
     criar.mutate(
       {
         clienteId: Number(clienteId),
-        veiculoId: Number(veiculoId),
-        motoristaId: Number(motoristaId),
+        // Sem motorista e veículo, a coleta vai para todos os motoristas (RF12).
+        veiculoId: disponibilizar ? undefined : Number(veiculoId),
+        motoristaId: disponibilizar ? undefined : Number(motoristaId),
         dataColeta,
         enderecoColeta: endereco.trim() || undefined,
         pesoEstimadoKg: pesoEstimado ? Number(pesoEstimado) : undefined,
@@ -86,30 +88,52 @@ export function NovaOrdem() {
           />
         </label>
 
-        <div className="formulario__linha">
-          <label className="campo">
-            <span>Motorista</span>
-            <select value={motoristaId} onChange={(e) => setMotoristaId(e.target.value)} required>
-              <option value="">Selecione…</option>
-              {motoristas.data?.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.nome}
-                </option>
-              ))}
-            </select>
+        <fieldset className="opcoes">
+          <legend>Quem faz a coleta</legend>
+          <label className="opcao">
+            <input type="radio" name="atribuicao" checked={!disponibilizar} onChange={() => setDisponibilizar(false)} />
+            <span>
+              <strong>Escolher o motorista</strong>
+              <small>Você define o motorista e o veículo agora.</small>
+            </span>
           </label>
+          <label className="opcao">
+            <input type="radio" name="atribuicao" checked={disponibilizar} onChange={() => setDisponibilizar(true)} />
+            <span>
+              <strong>Disponibilizar para os motoristas</strong>
+              <small>Todos recebem um aviso; o primeiro que aceitar fica com a coleta e escolhe o veículo.</small>
+            </span>
+          </label>
+        </fieldset>
 
-          <label className="campo">
-            <span>Veículo</span>
-            <select value={veiculoId} onChange={(e) => setVeiculoId(e.target.value)} required>
-              <option value="">Selecione…</option>
-              {veiculos.data?.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {formatarPlaca(v.placa)} — {v.modelo} ({formatarKg(v.capacidadeKg)})
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="formulario__linha">
+          {!disponibilizar && (
+            <>
+              <label className="campo">
+                <span>Motorista</span>
+                <select value={motoristaId} onChange={(e) => setMotoristaId(e.target.value)} required>
+                  <option value="">Selecione…</option>
+                  {motoristas.data?.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="campo">
+                <span>Veículo</span>
+                <select value={veiculoId} onChange={(e) => setVeiculoId(e.target.value)} required>
+                  <option value="">Selecione…</option>
+                  {veiculos.data?.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {formatarPlaca(v.placa)} — {v.modelo} ({formatarKg(v.capacidadeKg)})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
 
           <label className="campo">
             <span>Data da coleta</span>
@@ -152,10 +176,12 @@ export function NovaOrdem() {
           <button type="submit" className="botao botao--primario" disabled={criar.isPending}>
             {criar.isPending ? (
               <LoaderCircle size={18} className="girar" aria-hidden />
+            ) : disponibilizar ? (
+              <Megaphone size={18} aria-hidden />
             ) : (
               <Check size={18} aria-hidden />
             )}
-            {criar.isPending ? 'Criando…' : 'Criar ordem'}
+            {criar.isPending ? 'Criando…' : disponibilizar ? 'Publicar para os motoristas' : 'Criar ordem'}
           </button>
         </footer>
       </form>

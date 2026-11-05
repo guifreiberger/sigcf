@@ -9,16 +9,17 @@ As user stories e os critérios de aceite de cada requisito estão em [`user-sto
 | ID | Requisito | Descrição |
 |---|---|---|
 | RF01 | Cadastros | Manter veículos (placa, modelo, capacidade), motoristas (nome, e-mail, telefone, CNH opcional) e clientes (nome, telefone opcional, endereço), com ativação e desativação sem apagar o histórico |
-| RF02 | Ordem de coleta | O gestor cria a ordem ligando um cliente, um veículo ativo e um motorista ativo, com data, endereço (sugerido a partir do cliente) e observações |
+| RF02 | Ordem de coleta | O gestor cria a ordem ligando um cliente, um veículo ativo e um motorista ativo, com data, endereço (sugerido a partir do cliente) e observações, ou a disponibiliza sem motorista (RF12) |
 | RF03 | Coletas do motorista | O motorista vê apenas as próprias coletas do dia |
-| RF04 | Ciclo de status | Aguardando → Em andamento → Concluída ou Falha; cancelamento só pelo gestor; motivo obrigatório em falha e cancelamento |
+| RF04 | Ciclo de status | Aguardando → Em andamento → Concluída ou Falha; uma coleta disponível passa a Aguardando quando um motorista a aceita; cancelamento só pelo gestor; motivo obrigatório em falha e cancelamento |
 | RF05 | Rastreabilidade | Cada mudança de status registra data, hora, usuário, status anterior, novo status e motivo |
 | RF06 | Painel do dia | O gestor vê a quantidade de coletas do dia por status, atualizada automaticamente, e a lista com os responsáveis |
 | RF07 | Localização nas ações | A localização do motorista é registrada quando ele inicia, conclui ou reporta falha, e o gestor a vê no histórico |
 | RF08 | Peso estimado | O atendente registra, ao criar a ordem, o peso estimado informado pelo cliente |
 | RF09 | Inteligência para o gestor | Identificar o padrão de recorrência de cada cliente, prever a próxima coleta, acompanhar o peso médio e a tendência de peso e alertar coletas esperadas ainda não pedidas, sem APIs externas de IA |
-| RF10 | Aviso no celular | Notificar o motorista, mesmo com o app fechado, quando receber uma coleta ou tiver uma cancelada |
+| RF10 | Aviso no celular | Notificar o motorista, mesmo com o app fechado, quando receber uma coleta, tiver uma cancelada ou houver uma coleta disponível para aceitar |
 | RF11 | Trajeto da coleta | Enquanto a coleta está em andamento, o gestor acompanha a posição do motorista; ao final, ficam salvos o trajeto, a distância e a duração da corrida |
+| RF12 | Coleta disponível | O gestor publica a coleta sem motorista; todos os motoristas são avisados e o primeiro que aceitar fica com ela, escolhendo o veículo. Se dois aceitarem ao mesmo tempo, só um consegue |
 
 ## Requisitos não funcionais
 
@@ -34,7 +35,7 @@ As user stories e os critérios de aceite de cada requisito estão em [`user-sto
 
 ## Fluxos de negócio
 
-O playbook pede ao menos três fluxos de negócio completos. O SIGCF tem cinco, todos cobertos por testes automatizados: os testes e2e da API percorrem as regras de cada fluxo, e os testes das telas cobrem a interação do usuário.
+O playbook pede ao menos três fluxos de negócio completos. O SIGCF tem seis, todos cobertos por testes automatizados: os testes e2e da API percorrem as regras de cada fluxo, e os testes das telas cobrem a interação do usuário.
 
 | Fluxo | Do início ao fim | Requisitos |
 |---|---|---|
@@ -43,6 +44,7 @@ O playbook pede ao menos três fluxos de negócio completos. O SIGCF tem cinco, 
 | **3. Antecipação de pedidos** | Sistema identifica o padrão do cliente → alerta a coleta esperada e não pedida → gestor cria a ordem já preenchida a partir do alerta | RF08, RF09, RF02 |
 | **4. Gestão da frota e da carteira** | Gestor cadastra, edita e desativa veículos, motoristas e clientes; itens inativos deixam de aparecer na criação de ordens, mas o histórico é preservado | RF01 |
 | **5. Acompanhamento da corrida** | Motorista inicia → gestor vê no mapa onde ele está → motorista conclui → trajeto, distância e duração ficam salvos na ordem | RF11 |
+| **6. Coleta disponível, quem pega?** | Gestor publica a coleta sem motorista → todos os motoristas recebem o aviso → o primeiro que aceita escolhe o veículo e fica com ela → os demais veem que ela já foi aceita | RF12, RF10, RF04 |
 
 ## Fora do escopo
 

@@ -95,7 +95,7 @@ export function Inteligencia() {
 
             <section className="cartao">
               <h2>Padrões por cliente</h2>
-              <div className="tabela-rolagem">
+              <div className="tabela-rolagem" tabIndex={0} role="region" aria-label="Padrões por cliente">
                 <table className="tabela">
                   <thead>
                     <tr>

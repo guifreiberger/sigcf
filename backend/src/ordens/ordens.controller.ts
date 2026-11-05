@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseIntPipe,
   Patch,
@@ -12,6 +13,7 @@ import { Perfis, UsuarioAtual } from '../auth/decorators.js';
 import type { UsuarioAutenticado } from '../auth/usuario-autenticado.js';
 import { Perfil } from '../usuarios/perfil.enum.js';
 import {
+  AceitarColetaDto,
   AlterarStatusDto,
   CriarOrdemDto,
   DataQueryDto,
@@ -48,6 +50,23 @@ export class OrdensController {
     @UsuarioAtual() motorista: UsuarioAutenticado,
   ) {
     return this.ordens.minhas(motorista, data);
+  }
+
+  @Get('disponiveis')
+  @Perfis(Perfil.MOTORISTA)
+  disponiveis() {
+    return this.ordens.disponiveis();
+  }
+
+  @Post(':id/aceitar')
+  @HttpCode(200)
+  @Perfis(Perfil.MOTORISTA)
+  aceitar(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AceitarColetaDto,
+    @UsuarioAtual() motorista: UsuarioAutenticado,
+  ) {
+    return this.ordens.aceitar(id, dto, motorista);
   }
 
   @Get('resumo')

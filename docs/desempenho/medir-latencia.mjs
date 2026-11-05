@@ -1,11 +1,10 @@
-import { readFileSync } from 'node:fs';
-
-const env = Object.fromEntries(
-  readFileSync(process.argv[2], 'utf8')
-    .split(/\r?\n/)
-    .filter((l) => l && !l.startsWith('#') && l.includes('='))
-    .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
-);
+// Uso: node docs/desempenho/medir-latencia.mjs (com a API local rodando e o seed carregado).
+// A senha dos usuários de demonstração vem de SEED_SENHA ou, se não estiver definida, do
+// backend/.env, sempre no mesmo caminho em relação a este script.
+if (!process.env.SEED_SENHA) {
+  process.loadEnvFile(new URL('../../backend/.env', import.meta.url));
+}
+const env = { SEED_SENHA: process.env.SEED_SENHA };
 const base = 'http://localhost:3000/api';
 const N = 200;
 

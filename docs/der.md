@@ -47,13 +47,13 @@ erDiagram
     ORDEM_COLETA {
         int id PK
         int cliente_id FK
-        int veiculo_id FK
-        int motorista_id FK
+        int veiculo_id FK "nulo enquanto disponivel"
+        int motorista_id FK "nulo enquanto disponivel"
         int criado_por_id FK
         varchar endereco_coleta
         date data_coleta
         decimal peso_estimado_kg "opcional"
-        enum status "AGUARDANDO | EM_ANDAMENTO | CONCLUIDA | FALHA | CANCELADA"
+        enum status "DISPONIVEL | AGUARDANDO | EM_ANDAMENTO | CONCLUIDA | FALHA | CANCELADA"
         text observacao
         datetime created_at
         datetime updated_at
@@ -110,6 +110,8 @@ erDiagram
 
 **Inscrições de notificação.** Cada aparelho que ativa os avisos gera um endereço único no serviço de push do navegador (`endpoint`) e as chaves públicas usadas para criptografar a mensagem (`p256dh` e `auth`). Um usuário pode ter vários aparelhos, mas cada endereço pertence a um único usuário. A exclusão do usuário apaga suas inscrições (`ON DELETE CASCADE`).
 
+**Motorista e veículo opcionais na ordem (RF12).** Uma coleta disponível ainda não tem motorista nem veículo: os dois são definidos juntos, por quem a aceita. Por isso `motorista_id` e `veiculo_id` aceitam nulo, e a regra de que ou os dois estão preenchidos ou nenhum está fica na camada de serviço. Uma coleta só entra em andamento depois de aceita, então o rastreamento (RF11) sempre encontra motorista e veículo.
+
 **Índice composto `(motorista_id, data_coleta)`.** A consulta mais frequente do sistema é "coletas do motorista X no dia Y" (RF03). O índice mantém essa consulta dentro do requisito de 300 ms conforme o volume cresce.
 
 **Exclusão lógica.** Veículos, clientes e usuários são desativados (`ativo = false`) em vez de removidos, preservando a integridade referencial das ordens já registradas.
@@ -118,7 +120,10 @@ erDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> AGUARDANDO : gestor cria a ordem
+    [*] --> AGUARDANDO : gestor cria a ordem para um motorista
+    [*] --> DISPONIVEL : gestor disponibiliza a coleta
+    DISPONIVEL --> AGUARDANDO : primeiro motorista que aceita
+    DISPONIVEL --> CANCELADA : gestor cancela (motivo obrigatório)
     AGUARDANDO --> EM_ANDAMENTO : motorista inicia
     EM_ANDAMENTO --> CONCLUIDA : motorista conclui
     EM_ANDAMENTO --> FALHA : motorista reporta falha (motivo obrigatório)
@@ -131,9 +136,10 @@ stateDiagram-v2
 
 | Transição | Quem pode |
 |---|---|
+| DISPONIVEL → AGUARDANDO | Qualquer motorista ativo, pela rota de aceitar, que define o motorista e o veículo |
 | AGUARDANDO → EM_ANDAMENTO | Motorista responsável pela ordem |
 | EM_ANDAMENTO → CONCLUIDA | Motorista responsável pela ordem |
 | EM_ANDAMENTO → FALHA | Motorista responsável pela ordem |
-| AGUARDANDO/EM_ANDAMENTO → CANCELADA | Somente gestor |
+| DISPONIVEL/AGUARDANDO/EM_ANDAMENTO → CANCELADA | Somente gestor |
 
 `CONCLUIDA`, `FALHA` e `CANCELADA` são estados finais.

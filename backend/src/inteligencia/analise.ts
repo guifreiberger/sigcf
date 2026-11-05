@@ -96,7 +96,7 @@ function comArtigo(diaDaSemana: number) {
 }
 
 export function classificarRecorrencia(datas: string[]): Recorrencia {
-  const unicas = [...new Set(datas)].sort();
+  const unicas = [...new Set(datas)].sort((a, b) => a.localeCompare(b));
   if (unicas.length < MINIMO_OCORRENCIAS) {
     return {
       tipo: 'INSUFICIENTE',

@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { DataSource, Repository } from 'typeorm';
+import { type DataSource, MoreThanOrEqual, type Repository } from 'typeorm';
 import { Cliente } from '../clientes/cliente.entity.js';
 import type { NotificacoesService } from '../notificacoes/notificacoes.service.js';
 import { Perfil } from '../usuarios/perfil.enum.js';
@@ -66,7 +66,10 @@ describe('OrdensService', () => {
     findOne: vi.fn(),
     createQueryBuilder: vi.fn(),
   };
-  const notificacoes = { enviarParaUsuario: vi.fn() };
+  const notificacoes = {
+    enviarParaUsuario: vi.fn(),
+    enviarParaMotoristas: vi.fn(),
+  };
   const service = new OrdensService(
     dataSource as unknown as DataSource,
     ordens as unknown as Repository<OrdemColeta>,
@@ -509,6 +512,201 @@ describe('OrdensService', () => {
     });
   });
 
+  describe('coleta disponível (RF12)', () => {
+    const disponivel: CriarOrdemDto = { clienteId: 3, dataColeta: HOJE };
+
+    it('publica a coleta sem motorista nem veículo e avisa todos os motoristas', async () => {
+      cadastrosEncontrados(new Map<unknown, unknown>([[Cliente, cliente]]));
+      ordens.findOne.mockResolvedValue(
+        ordemCom({
+          status: StatusOrdem.DISPONIVEL,
+          motoristaId: null,
+          veiculoId: null,
+        }),
+      );
+
+      await service.criar(disponivel, gestor);
+
+      expect(em.findOneBy).not.toHaveBeenCalledWith(Veiculo, expect.anything());
+      expect(em.create).toHaveBeenCalledWith(
+        OrdemColeta,
+        expect.objectContaining({
+          motoristaId: null,
+          veiculoId: null,
+          status: StatusOrdem.DISPONIVEL,
+        }),
+      );
+      expect(em.insert).toHaveBeenCalledWith(
+        HistoricoStatus,
+        expect.objectContaining({
+          statusAnterior: null,
+          statusNovo: StatusOrdem.DISPONIVEL,
+        }),
+      );
+      expect(notificacoes.enviarParaMotoristas).toHaveBeenCalledWith(
+        expect.objectContaining({
+          titulo: 'Coleta disponível: quem pega?',
+          tag: 'ordem-10',
+        }),
+      );
+      expect(notificacoes.enviarParaUsuario).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['só o motorista', { motoristaId: 7 }],
+      ['só o veículo', { veiculoId: 4 }],
+    ])('recusa informar %s', async (_, parcial) => {
+      await expect(
+        service.criar({ ...disponivel, ...parcial }, gestor),
+      ).rejects.toThrow(BadRequestException);
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('lista para o motorista as coletas disponíveis de hoje em diante', async () => {
+      ordens.find.mockResolvedValue([
+        ordemCom({ status: StatusOrdem.DISPONIVEL, motoristaId: null }),
+      ]);
+
+      const [ordem] = await service.disponiveis();
+
+      expect(ordens.find).toHaveBeenCalledWith({
+        where: {
+          status: StatusOrdem.DISPONIVEL,
+          dataColeta: MoreThanOrEqual(HOJE),
+        },
+        relations: { cliente: true },
+        order: { dataColeta: 'ASC', id: 'ASC' },
+      });
+      expect(ordem.transicoesPermitidas).toEqual([]);
+    });
+
+    describe('aceitar', () => {
+      function noBanco(dados: Partial<OrdemColeta>) {
+        const ordem = ordemCom({
+          status: StatusOrdem.DISPONIVEL,
+          motoristaId: null,
+          veiculoId: null,
+          ...dados,
+        });
+        em.findOne.mockResolvedValue(ordem);
+        ordens.findOne.mockResolvedValue({
+          ...ordem,
+          status: StatusOrdem.AGUARDANDO,
+          motoristaId: 7,
+          veiculoId: 4,
+        });
+        cadastrosEncontrados(new Map<unknown, unknown>([[Veiculo, veiculo]]));
+      }
+
+      it('trava a ordem e a entrega ao motorista que aceitou, com o veículo escolhido', async () => {
+        noBanco({});
+
+        const aceita = await service.aceitar(10, { veiculoId: 4 }, joao);
+
+        expect(em.findOne).toHaveBeenCalledWith(OrdemColeta, {
+          where: { id: 10 },
+          lock: { mode: 'pessimistic_write' },
+        });
+        expect(em.findOneBy).toHaveBeenCalledWith(Veiculo, {
+          id: 4,
+          ativo: true,
+        });
+        expect(em.update).toHaveBeenCalledWith(OrdemColeta, 10, {
+          motoristaId: 7,
+          veiculoId: 4,
+          status: StatusOrdem.AGUARDANDO,
+        });
+        expect(em.insert).toHaveBeenCalledWith(HistoricoStatus, {
+          ordemId: 10,
+          usuarioId: 7,
+          statusAnterior: StatusOrdem.DISPONIVEL,
+          statusNovo: StatusOrdem.AGUARDANDO,
+          motivo: null,
+        });
+        expect(aceita).toMatchObject({
+          motoristaId: 7,
+          transicoesPermitidas: [StatusOrdem.EM_ANDAMENTO],
+        });
+      });
+
+      it('avisa quando outro motorista aceitou primeiro', async () => {
+        noBanco({ status: StatusOrdem.AGUARDANDO, motoristaId: 8 });
+
+        await expect(
+          service.aceitar(10, { veiculoId: 4 }, joao),
+        ).rejects.toThrow(
+          new ConflictException(
+            'Esta coleta já foi aceita por outro motorista.',
+          ),
+        );
+        expect(em.update).not.toHaveBeenCalled();
+      });
+
+      it('responde com clareza ao motorista que aceita a mesma coleta duas vezes', async () => {
+        noBanco({ status: StatusOrdem.AGUARDANDO, motoristaId: 7 });
+
+        await expect(
+          service.aceitar(10, { veiculoId: 4 }, joao),
+        ).rejects.toThrow(
+          new ConflictException('Você já aceitou esta coleta.'),
+        );
+      });
+
+      it('recusa uma coleta que foi cancelada antes da aceitação', async () => {
+        noBanco({ status: StatusOrdem.CANCELADA });
+
+        await expect(
+          service.aceitar(10, { veiculoId: 4 }, joao),
+        ).rejects.toThrow(
+          new ConflictException('Esta coleta não está mais disponível.'),
+        );
+      });
+
+      it('recusa veículo inexistente ou inativo', async () => {
+        noBanco({});
+        cadastrosEncontrados(new Map());
+
+        await expect(
+          service.aceitar(10, { veiculoId: 99 }, joao),
+        ).rejects.toThrow(
+          new UnprocessableEntityException(
+            'Veículo não encontrado ou inativo.',
+          ),
+        );
+        expect(em.update).not.toHaveBeenCalled();
+      });
+
+      it('lança NotFound quando a ordem não existe', async () => {
+        em.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.aceitar(99, { veiculoId: 4 }, joao),
+        ).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    it('não tenta avisar motorista ao cancelar uma coleta que ninguém aceitou', async () => {
+      const ordem = ordemCom({
+        status: StatusOrdem.DISPONIVEL,
+        motoristaId: null,
+        veiculoId: null,
+      });
+      em.findOne.mockResolvedValue(ordem);
+      ordens.findOne.mockResolvedValue({
+        ...ordem,
+        status: StatusOrdem.CANCELADA,
+      });
+
+      await service.alterarStatus(
+        10,
+        { status: StatusOrdem.CANCELADA, motivo: 'Sem motorista livre' },
+        gestor,
+      );
+
+      expect(notificacoes.enviarParaUsuario).not.toHaveBeenCalled();
+    });
+  });
+
   describe('resumo', () => {
     function linhasDoBanco(linhas: { status: StatusOrdem; total: string }[]) {
       const consulta = {
@@ -532,6 +730,7 @@ describe('OrdensService', () => {
         data: HOJE,
         total: 5,
         porStatus: {
+          DISPONIVEL: 0,
           AGUARDANDO: 3,
           EM_ANDAMENTO: 0,
           CONCLUIDA: 2,

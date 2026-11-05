@@ -7,7 +7,7 @@ export function TabelaOrdens({ ordens, mostrarData = false }: { ordens: Ordem[];
   const navegar = useNavigate()
 
   return (
-    <div className="tabela-rolagem">
+    <div className="tabela-rolagem" tabIndex={0} role="region" aria-label="Ordens de coleta">
       <table className="tabela tabela--clicavel">
         <thead>
           <tr>
@@ -35,8 +35,8 @@ export function TabelaOrdens({ ordens, mostrarData = false }: { ordens: Ordem[];
                   {o.enderecoColeta}
                 </small>
               </td>
-              <td>{o.motorista?.nome}</td>
-              <td>{formatarPlaca(o.veiculo.placa)}</td>
+              <td>{o.motorista?.nome ?? <span className="texto-suave">Aguardando aceite</span>}</td>
+              <td>{o.veiculo ? formatarPlaca(o.veiculo.placa) : '—'}</td>
               <td>{o.pesoEstimadoKg != null ? formatarKg(o.pesoEstimadoKg) : '—'}</td>
               <td>
                 <StatusBadge status={o.status} />

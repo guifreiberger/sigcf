@@ -78,7 +78,7 @@ export function PaginaCadastro<R extends Recurso>({ recurso, titulo, descricao, 
         {lista.isPending ? (
           <Carregando />
         ) : lista.data?.length ? (
-          <div className="tabela-rolagem">
+          <div className="tabela-rolagem" tabIndex={0} role="region" aria-label={`Tabela de ${titulo.toLowerCase()}`}>
             <table className="tabela">
               <thead>
                 <tr>

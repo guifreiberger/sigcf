@@ -22,6 +22,7 @@ export class VeiculosController {
   constructor(private readonly veiculos: VeiculosService) {}
 
   @Get()
+  @Perfis(Perfil.GESTOR, Perfil.MOTORISTA)
   listar(@Query() { ativo }: AtivoQueryDto) {
     return this.veiculos.listar(ativo);
   }

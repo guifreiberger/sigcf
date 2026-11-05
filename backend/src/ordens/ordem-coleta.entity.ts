@@ -30,19 +30,21 @@ export class OrdemColeta {
   @JoinColumn({ name: 'cliente_id' })
   cliente: Relation<Cliente>;
 
-  @Column({ name: 'veiculo_id', type: 'int' })
-  veiculoId: number;
+  // Motorista e veículo ficam vazios enquanto a coleta está disponível (RF12) e são
+  // definidos juntos, por quem a aceita.
+  @Column({ name: 'veiculo_id', type: 'int', nullable: true })
+  veiculoId: number | null;
 
-  @ManyToOne(() => Veiculo, { nullable: false })
+  @ManyToOne(() => Veiculo, { nullable: true })
   @JoinColumn({ name: 'veiculo_id' })
-  veiculo: Relation<Veiculo>;
+  veiculo: Relation<Veiculo> | null;
 
-  @Column({ name: 'motorista_id', type: 'int' })
-  motoristaId: number;
+  @Column({ name: 'motorista_id', type: 'int', nullable: true })
+  motoristaId: number | null;
 
-  @ManyToOne(() => Usuario, { nullable: false })
+  @ManyToOne(() => Usuario, { nullable: true })
   @JoinColumn({ name: 'motorista_id' })
-  motorista: Relation<Usuario>;
+  motorista: Relation<Usuario> | null;
 
   @Column({ name: 'criado_por_id', type: 'int' })
   criadoPorId: number;
