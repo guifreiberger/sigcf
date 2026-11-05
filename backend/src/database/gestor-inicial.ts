@@ -1,4 +1,5 @@
 import { hash } from 'bcryptjs';
+import { isEmail } from 'class-validator';
 import type { Repository } from 'typeorm';
 import { Perfil } from '../usuarios/perfil.enum.js';
 import type { Usuario } from '../usuarios/usuario.entity.js';
@@ -20,7 +21,7 @@ export function lerDadosDoGestor(
   const email = ambiente.GESTOR_EMAIL?.trim().toLowerCase();
   const senha = ambiente.GESTOR_SENHA ?? '';
   if (!nome) throw new Error('Informe GESTOR_NOME.');
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!email || !isEmail(email)) {
     throw new Error('Informe um e-mail válido em GESTOR_EMAIL.');
   }
   if (senha.length < TAMANHO_MINIMO_DA_SENHA) {
