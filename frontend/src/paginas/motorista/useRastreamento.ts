@@ -10,6 +10,12 @@ const LOTE_MAXIMO = 200
 const LIMITE_PENDENTES = 2_000
 const CHAVE_PENDENTES = 'sigcf.trajeto.pendentes'
 const ERRO_TEMPO_ESGOTADO = 3
+// Sem leitura nesse tempo, o acompanhamento contínuo provavelmente parou (ver abaixo).
+const SEM_LEITURA_MS = 20_000
+// Sem leitura nesse tempo, o motorista é avisado de que a posição não está sendo enviada.
+const SEM_SINAL_MS = 30_000
+const OPCOES_GPS: PositionOptions = { enableHighAccuracy: true, maximumAge: 5_000, timeout: 30_000 }
+const OPCOES_AVULSA: PositionOptions = { enableHighAccuracy: true, maximumAge: 5_000, timeout: 10_000 }
 
 export type EstadoRastreamento = 'desligado' | 'aguardando-gps' | 'compartilhando' | 'sem-gps'
 
@@ -73,28 +79,54 @@ export function useRastreamento(ativo: boolean) {
     if (!ativo || !('geolocation' in navigator)) return
     const { geolocation } = navigator
     let ultimaLeitura = -Infinity
-    const vigia = geolocation.watchPosition(
-      ({ coords, timestamp }) => {
-        setLeitura('compartilhando')
-        if (timestamp - ultimaLeitura < INTERVALO_LEITURA_MS) return
-        ultimaLeitura = timestamp
-        atualizarFila([
-          ...fila.current,
-          {
-            latitude: arredondar(coords.latitude),
-            longitude: arredondar(coords.longitude),
-            precisaoMetros: Math.round(coords.accuracy),
-            registradoEm: new Date(timestamp).toISOString(),
-          },
-        ])
-      },
-      (erro) => setLeitura(erro.code === ERRO_TEMPO_ESGOTADO ? 'aguardando-gps' : 'sem-gps'),
-      { enableHighAccuracy: true, maximumAge: 5_000, timeout: 30_000 },
-    )
-    const ciclo = setInterval(() => void enviarPendentes(), INTERVALO_ENVIO_MS)
+    let ultimaChegada = Date.now()
+
+    const registrar = ({ coords, timestamp }: GeolocationPosition) => {
+      ultimaChegada = Date.now()
+      setLeitura('compartilhando')
+      if (timestamp - ultimaLeitura < INTERVALO_LEITURA_MS) return
+      ultimaLeitura = timestamp
+      atualizarFila([
+        ...fila.current,
+        {
+          latitude: arredondar(coords.latitude),
+          longitude: arredondar(coords.longitude),
+          precisaoMetros: Math.round(coords.accuracy),
+          registradoEm: new Date(timestamp).toISOString(),
+        },
+      ])
+    }
+    const aoFalhar = (erro: GeolocationPositionError) =>
+      setLeitura(erro.code === ERRO_TEMPO_ESGOTADO ? 'aguardando-gps' : 'sem-gps')
+
+    let vigia = geolocation.watchPosition(registrar, aoFalhar, OPCOES_GPS)
+    const recomecar = () => {
+      geolocation.clearWatch(vigia)
+      vigia = geolocation.watchPosition(registrar, aoFalhar, OPCOES_GPS)
+      geolocation.getCurrentPosition(registrar, aoFalhar, OPCOES_AVULSA)
+    }
+
+    // Num Android real, depois que a tela apagou ou o app saiu da frente, o acompanhamento
+    // contínuo parou de entregar leituras sem avisar, enquanto o pedido avulso de posição
+    // seguia funcionando. Sem leitura há 20 s, o acompanhamento é refeito e uma posição
+    // avulsa é pedida; assim o trajeto continua sendo desenhado mesmo nesse caso.
+    const verificar = () => {
+      const semLeitura = Date.now() - ultimaChegada
+      if (semLeitura < SEM_LEITURA_MS) return
+      if (semLeitura >= SEM_SINAL_MS) setLeitura('aguardando-gps')
+      recomecar()
+    }
+    const aoVoltar = () => document.visibilityState === 'visible' && recomecar()
+
+    const ciclos = [
+      setInterval(() => void enviarPendentes(), INTERVALO_ENVIO_MS),
+      setInterval(verificar, INTERVALO_LEITURA_MS),
+    ]
+    document.addEventListener('visibilitychange', aoVoltar)
     return () => {
       geolocation.clearWatch(vigia)
-      clearInterval(ciclo)
+      ciclos.forEach(clearInterval)
+      document.removeEventListener('visibilitychange', aoVoltar)
       setLeitura('aguardando-gps')
     }
   }, [ativo, atualizarFila, enviarPendentes])
