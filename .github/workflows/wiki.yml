@@ -1,0 +1,50 @@
+name: Wiki
+
+# Publica a documentação de docs/ na Wiki do GitHub sempre que ela muda na develop,
+# para a Wiki nunca ficar desatualizada em relação ao repositório.
+on:
+  push:
+    branches: [develop]
+    paths:
+      - docs/**
+      - README.md
+      - CONTRIBUTING.md
+      - scripts/gerar-wiki.mjs
+      - .github/workflows/wiki.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wiki
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    name: Publica a Wiki
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Gera as páginas a partir de docs/
+        run: node scripts/gerar-wiki.mjs wiki-gerada "$GITHUB_REF_NAME"
+      - name: Envia para o repositório da Wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki
+          find wiki -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -r wiki-gerada/. wiki/
+          cd wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "A Wiki já está atualizada."
+          else
+            git commit -m "docs: sincroniza a Wiki com ${GITHUB_SHA::7}"
+            git push
+          fi
