@@ -11,6 +11,11 @@ import { DataSource, type FindOptionsWhere, Repository } from 'typeorm';
 import type { UsuarioAutenticado } from '../auth/usuario-autenticado.js';
 import { Cliente } from '../clientes/cliente.entity.js';
 import { hoje } from '../common/data.js';
+import {
+  avisoColetaCancelada,
+  avisoNovaColeta,
+} from '../notificacoes/avisos.js';
+import { NotificacoesService } from '../notificacoes/notificacoes.service.js';
 import { Perfil } from '../usuarios/perfil.enum.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
 import { Veiculo } from '../veiculos/veiculo.entity.js';
@@ -40,6 +45,7 @@ export class OrdensService {
     private readonly dataSource: DataSource,
     @InjectRepository(OrdemColeta)
     private readonly ordens: Repository<OrdemColeta>,
+    private readonly notificacoes: NotificacoesService,
   ) {}
 
   async criar(dto: CriarOrdemDto, gestor: UsuarioAutenticado) {
@@ -87,6 +93,7 @@ export class OrdensService {
           criadoPorId: gestor.id,
           enderecoColeta: dto.enderecoColeta ?? cliente.endereco,
           dataColeta: dto.dataColeta,
+          pesoEstimadoKg: dto.pesoEstimadoKg ?? null,
           status: StatusOrdem.AGUARDANDO,
           observacao: dto.observacao ?? null,
         }),
@@ -101,7 +108,12 @@ export class OrdensService {
       return ordem.id;
     });
 
-    return this.detalhar(id, gestor);
+    const criada = await this.detalhar(id, gestor);
+    void this.notificacoes.enviarParaUsuario(
+      criada.motoristaId,
+      avisoNovaColeta(criada, hoje()),
+    );
+    return criada;
   }
 
   async listar(filtros: FiltroOrdensDto, usuario: UsuarioAutenticado) {
@@ -168,6 +180,10 @@ export class OrdensService {
         throw new EXCECAO_POR_ERRO[erro.tipo](erro.message);
       }
 
+      // Coleta mínima: a localização só é guardada para ações do motorista em campo.
+      const local =
+        usuario.perfil === Perfil.MOTORISTA ? dto.localizacao : undefined;
+
       await em.update(OrdemColeta, ordem.id, { status: dto.status });
       await em.insert(HistoricoStatus, {
         ordemId: ordem.id,
@@ -175,10 +191,23 @@ export class OrdensService {
         statusAnterior: ordem.status,
         statusNovo: dto.status,
         motivo: dto.motivo?.trim() || null,
+        latitude: local?.latitude ?? null,
+        longitude: local?.longitude ?? null,
+        precisaoMetros:
+          local?.precisaoMetros == null
+            ? null
+            : Math.round(local.precisaoMetros),
       });
     });
 
-    return this.detalhar(id, usuario);
+    const atualizada = await this.detalhar(id, usuario);
+    if (dto.status === StatusOrdem.CANCELADA) {
+      void this.notificacoes.enviarParaUsuario(
+        atualizada.motoristaId,
+        avisoColetaCancelada(atualizada, hoje(), dto.motivo?.trim() ?? ''),
+      );
+    }
+    return atualizada;
   }
 
   async resumo(data = hoje()) {

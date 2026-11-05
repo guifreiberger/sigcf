@@ -1,11 +1,17 @@
-import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { hash } from 'bcryptjs';
 import request from 'supertest';
-import type { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { Cliente } from '../src/clientes/cliente.entity.js';
-import { hoje } from '../src/common/data.js';
+import { hoje, somarDias } from '../src/common/data.js';
+import {
+  type DestinoPush,
+  EnviadorPush,
+} from '../src/notificacoes/enviador-push.js';
+import { InscricaoPush } from '../src/notificacoes/inscricao-push.entity.js';
+import { OrdemColeta } from '../src/ordens/ordem-coleta.entity.js';
+import { StatusOrdem } from '../src/ordens/status-ordem.enum.js';
 import { Perfil } from '../src/usuarios/perfil.enum.js';
 import { Usuario } from '../src/usuarios/usuario.entity.js';
 import { Veiculo } from '../src/veiculos/veiculo.entity.js';
@@ -18,8 +24,21 @@ const { configurarApp } = await import('../src/app.setup.js');
 
 type Quem = 'gestor' | 'joao' | 'maria';
 
+const enviados: {
+  endpoint: string;
+  aviso: { titulo: string; corpo: string; tag: string; url: string };
+}[] = [];
+const expirados = new Set<string>();
+const enviadorFalso: EnviadorPush = {
+  chavePublica: 'chave-publica-de-teste',
+  enviar: async (destino: DestinoPush, conteudo: string) => {
+    enviados.push({ endpoint: destino.endpoint, aviso: JSON.parse(conteudo) });
+    return expirados.has(destino.endpoint) ? 'EXPIRADO' : 'ENVIADO';
+  },
+};
+
 describe('API do SIGCF (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: NestExpressApplication;
   const tokens = {} as Record<Quem, string>;
   const ids = {} as Record<
     'joao' | 'maria' | 'cliente' | 'veiculo' | 'veiculoInativo',
@@ -40,8 +59,13 @@ describe('API do SIGCF (e2e)', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
-    app = configurarApp(moduleRef.createNestApplication());
+    })
+      .overrideProvider(EnviadorPush)
+      .useValue(enviadorFalso)
+      .compile();
+    app = configurarApp(
+      moduleRef.createNestApplication<NestExpressApplication>(),
+    );
     await app.init();
 
     const ds = app.get(DataSource);
@@ -127,6 +151,35 @@ describe('API do SIGCF (e2e)', () => {
 
     it('impede o motorista de acessar os cadastros', () =>
       api().get('/api/veiculos').set(como('joao')).expect(403));
+
+    it('responde com os cabeçalhos de segurança', async () => {
+      const res = await api().get('/api/health').expect(200);
+      expect(res.headers).toMatchObject({
+        'x-content-type-options': 'nosniff',
+        'x-frame-options': 'SAMEORIGIN',
+        'strict-transport-security': expect.stringContaining('max-age='),
+      });
+      expect(res.headers).not.toHaveProperty('x-powered-by');
+    });
+
+    it('bloqueia tentativas repetidas de login na mesma conta', async () => {
+      const tentar = () =>
+        api()
+          .post('/api/auth/login')
+          .send({ email: 'forca-bruta@e2e.local', senha: 'chute' });
+
+      for (let i = 0; i < 5; i++) await tentar().expect(401);
+      const bloqueada = await tentar().expect(429);
+      expect(bloqueada.body.message).toBe(
+        'Muitas tentativas de login. Aguarde um minuto e tente novamente.',
+      );
+
+      // Outra conta, na mesma rede, continua entrando normalmente.
+      await api()
+        .post('/api/auth/login')
+        .send({ email: 'maria@e2e.local', senha: 'senha-e2e' })
+        .expect(200);
+    });
   });
 
   describe('RF01 — cadastros', () => {
@@ -340,5 +393,334 @@ describe('API do SIGCF (e2e)', () => {
         porStatus: { AGUARDANDO: 0, EM_ANDAMENTO: 0, FALHA: 1, CANCELADA: 1 },
       });
     });
+  });
+
+  describe('localização nas ações do motorista', () => {
+    let ordem: number;
+    const noCliente = {
+      latitude: -26.304408,
+      longitude: -48.848721,
+      precisaoMetros: 12.4,
+    };
+
+    beforeAll(async () => {
+      const res = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+      ordem = res.body.id;
+    });
+
+    it('recusa coordenadas inválidas', () =>
+      alterarStatus('joao', ordem, {
+        status: 'EM_ANDAMENTO',
+        localizacao: { latitude: 120, longitude: 10 },
+      }).expect(400));
+
+    it('grava a localização enviada pelo motorista', async () => {
+      const res = await alterarStatus('joao', ordem, {
+        status: 'EM_ANDAMENTO',
+        localizacao: noCliente,
+      }).expect(200);
+      expect(res.body.historico.at(-1)).toMatchObject({
+        statusNovo: 'EM_ANDAMENTO',
+        latitude: -26.304408,
+        longitude: -48.848721,
+        precisaoMetros: 12,
+      });
+    });
+
+    it('descarta a localização enviada em ações do gestor', async () => {
+      const res = await alterarStatus('gestor', ordem, {
+        status: 'CANCELADA',
+        motivo: 'Teste de privacidade',
+        localizacao: noCliente,
+      }).expect(200);
+      expect(res.body.historico.at(-1)).toMatchObject({
+        statusNovo: 'CANCELADA',
+        latitude: null,
+        longitude: null,
+        precisaoMetros: null,
+      });
+    });
+  });
+
+  describe('inteligência para o gestor', () => {
+    it('registra o peso estimado informado na criação da ordem', async () => {
+      const res = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send({ ...novaOrdem(), pesoEstimadoKg: 1250.5 })
+        .expect(201);
+      expect(res.body.pesoEstimadoKg).toBe(1250.5);
+
+      await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send({ ...novaOrdem(), pesoEstimadoKg: -3 })
+        .expect(400);
+    });
+
+    it('restringe a análise ao gestor', () =>
+      api().get('/api/inteligencia/clientes').set(como('joao')).expect(403));
+
+    it('identifica o padrão semanal, a tendência de peso e alerta a próxima coleta', async () => {
+      const ds = app.get(DataSource);
+      const cliente = await ds
+        .getRepository(Cliente)
+        .save({ nome: 'Cliente Semanal', endereco: 'Rua Semanal, 7' });
+      const gestor = await ds
+        .getRepository(Usuario)
+        .findOneByOrFail({ email: 'gestor@e2e.local' });
+      await ds.getRepository(OrdemColeta).save(
+        [34, 27, 20, 13, 6].map((diasAtras, i) => ({
+          clienteId: cliente.id,
+          veiculoId: ids.veiculo,
+          motoristaId: ids.joao,
+          criadoPorId: gestor.id,
+          enderecoColeta: cliente.endereco,
+          dataColeta: somarDias(hoje(), -diasAtras),
+          pesoEstimadoKg: 100 + i * 20,
+          status: StatusOrdem.CONCLUIDA,
+        })),
+      );
+
+      const res = await api()
+        .get('/api/inteligencia/clientes')
+        .set(como('gestor'))
+        .expect(200);
+      const analise = res.body.clientes.find(
+        (c: { cliente: string }) => c.cliente === 'Cliente Semanal',
+      );
+      expect(analise).toMatchObject({
+        totalColetas: 5,
+        recorrencia: { tipo: 'SEMANAL', regularidade: 1 },
+        proximaPrevista: somarDias(hoje(), 1),
+        proximaAgendada: null,
+        peso: { mediaKg: 140, tendencia: 'ALTA' },
+      });
+      expect(res.body.alertas).toContainEqual(
+        expect.objectContaining({
+          cliente: 'Cliente Semanal',
+          tipo: 'PREVISTA',
+          dias: 1,
+        }),
+      );
+    });
+  });
+
+  describe('notificações push', () => {
+    const endpointJoao = 'https://fcm.googleapis.com/fcm/send/aparelho-joao';
+    const chaves = { p256dh: 'chave-p256dh-de-teste', auth: 'auth-de-teste' };
+    const inscrever = (quem: Quem, endpoint: string) =>
+      api()
+        .post('/api/notificacoes/inscricoes')
+        .set(como(quem))
+        .send({ endpoint, keys: chaves, expirationTime: null });
+    const inscricoesDe = (endpoint: string) =>
+      app.get(DataSource).getRepository(InscricaoPush).findBy({ endpoint });
+
+    beforeEach(() => {
+      enviados.length = 0;
+    });
+
+    it('entrega a chave pública ao app', async () => {
+      const res = await api()
+        .get('/api/notificacoes/chave-publica')
+        .set(como('joao'))
+        .expect(200);
+      expect(res.body).toEqual({ chavePublica: 'chave-publica-de-teste' });
+    });
+
+    it('só aceita endpoints de serviços de push conhecidos', () =>
+      inscrever('joao', 'https://servidor-interno.local/push').expect(400));
+
+    it('avisa o motorista quando ele recebe uma coleta nova', async () => {
+      await inscrever('joao', endpointJoao).expect(204);
+      await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send({ ...novaOrdem(), pesoEstimadoKg: 1200 })
+        .expect(201);
+
+      await vi.waitFor(() => expect(enviados).toHaveLength(1));
+      expect(enviados[0]).toMatchObject({
+        endpoint: endpointJoao,
+        aviso: { titulo: 'Nova coleta para você', url: '/motorista' },
+      });
+      expect(enviados[0].aviso.corpo).toContain(
+        'Cliente Teste, hoje · cerca de 1.200 kg',
+      );
+    });
+
+    it('avisa o motorista quando a coleta é cancelada', async () => {
+      const { body } = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+      await vi.waitFor(() => expect(enviados).toHaveLength(1));
+      enviados.length = 0;
+
+      await alterarStatus('gestor', body.id, {
+        status: 'CANCELADA',
+        motivo: 'Cliente desistiu',
+      }).expect(200);
+
+      await vi.waitFor(() => expect(enviados).toHaveLength(1));
+      expect(enviados[0].aviso).toMatchObject({
+        titulo: 'Coleta cancelada',
+        tag: `ordem-${body.id}`,
+      });
+      expect(enviados[0].aviso.corpo).toContain('Cliente desistiu');
+    });
+
+    it('transfere a inscrição quando outro usuário entra no mesmo aparelho', async () => {
+      await inscrever('maria', endpointJoao).expect(204);
+      const inscricoes = await inscricoesDe(endpointJoao);
+      expect(inscricoes).toHaveLength(1);
+      expect(inscricoes[0].usuarioId).toBe(ids.maria);
+    });
+
+    it('apaga inscrições que o serviço de push informa como expiradas', async () => {
+      const antigo = 'https://fcm.googleapis.com/fcm/send/aparelho-antigo';
+      await inscrever('joao', antigo).expect(204);
+      expirados.add(antigo);
+
+      await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+
+      await vi.waitFor(async () =>
+        expect(await inscricoesDe(antigo)).toHaveLength(0),
+      );
+    });
+
+    it('remove a inscrição quando o usuário desativa os avisos', async () => {
+      await api()
+        .delete('/api/notificacoes/inscricoes')
+        .set(como('maria'))
+        .send({ endpoint: endpointJoao })
+        .expect(204);
+      expect(await inscricoesDe(endpointJoao)).toHaveLength(0);
+    });
+  });
+
+  describe('RF11 — trajeto da coleta', () => {
+    let ordem: number;
+    const enviarPontos = (quem: Quem, pontos: object[]) =>
+      api().post('/api/rastreamento/pontos').set(como(quem)).send({ pontos });
+    // Cada milésimo de grau de latitude equivale a cerca de 111 m.
+    const leitura = (
+      milesimos: number,
+      segundos: number,
+      precisaoMetros = 8,
+    ) => ({
+      latitude: -26.48 + milesimos / 1000,
+      longitude: -49.07,
+      precisaoMetros,
+      registradoEm: new Date(Date.now() + segundos * 1000).toISOString(),
+    });
+
+    beforeAll(async () => {
+      const res = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+      ordem = res.body.id;
+    });
+
+    it('só aceita pontos do motorista com coleta em andamento', async () => {
+      await enviarPontos('joao', [leitura(0, 0)]).expect(409);
+      await enviarPontos('gestor', [leitura(0, 0)]).expect(403);
+    });
+
+    it('valida as leituras recebidas', async () => {
+      await alterarStatus('joao', ordem, { status: 'EM_ANDAMENTO' }).expect(
+        200,
+      );
+      await enviarPontos('joao', []).expect(400);
+      await enviarPontos('joao', [{ ...leitura(0, 0), latitude: 95 }]).expect(
+        400,
+      );
+      await enviarPontos('joao', [
+        { ...leitura(0, 0), registradoEm: 'ontem' },
+      ]).expect(400);
+    });
+
+    it('mostra ao gestor a posição atual de quem está em rota', async () => {
+      await enviarPontos('joao', [
+        leitura(0, 0),
+        leitura(1, 15),
+        leitura(2, 30, 900),
+      ]).expect(204);
+
+      const res = await api()
+        .get('/api/rastreamento/em-rota')
+        .set(como('gestor'))
+        .expect(200);
+      expect(res.body).toEqual([
+        expect.objectContaining({
+          ordemId: ordem,
+          motorista: { id: ids.joao, nome: 'João' },
+          cliente: 'Cliente Teste',
+          ultimaPosicao: expect.objectContaining({
+            latitude: -26.479,
+            longitude: -49.07,
+            precisaoMetros: 8,
+          }),
+        }),
+      ]);
+    });
+
+    it('restringe o acompanhamento ao gestor', async () => {
+      await api()
+        .get('/api/rastreamento/em-rota')
+        .set(como('joao'))
+        .expect(403);
+      await api()
+        .get(`/api/rastreamento/ordens/${ordem}`)
+        .set(como('joao'))
+        .expect(403);
+    });
+
+    it('salva o trajeto e o tempo da corrida ao concluir', async () => {
+      await enviarPontos('joao', [leitura(4, 45)]).expect(204);
+      await alterarStatus('joao', ordem, { status: 'CONCLUIDA' }).expect(200);
+      await enviarPontos('joao', [leitura(9, 60)]).expect(409);
+
+      const res = await api()
+        .get(`/api/rastreamento/ordens/${ordem}`)
+        .set(como('gestor'))
+        .expect(200);
+      expect(res.body).toMatchObject({
+        ordemId: ordem,
+        status: 'CONCLUIDA',
+        distanciaMetros: 445,
+        ultimaPosicao: { latitude: -26.476, longitude: -49.07 },
+      });
+      expect(res.body.pontos).toHaveLength(3);
+      expect(res.body.inicio).not.toBeNull();
+      expect(res.body.fim).not.toBeNull();
+      expect(res.body.duracaoSegundos).toBeGreaterThanOrEqual(0);
+    });
+
+    it('tira do mapa a coleta concluída', async () => {
+      const res = await api()
+        .get('/api/rastreamento/em-rota')
+        .set(como('gestor'))
+        .expect(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it('responde 404 para ordem inexistente', () =>
+      api()
+        .get('/api/rastreamento/ordens/999999')
+        .set(como('gestor'))
+        .expect(404));
   });
 });

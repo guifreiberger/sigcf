@@ -11,6 +11,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Cliente } from '../clientes/cliente.entity.js';
+import { decimalParaNumero } from '../common/decimal.transformer.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
 import { Veiculo } from '../veiculos/veiculo.entity.js';
 import { HistoricoStatus } from './historico-status.entity.js';
@@ -58,6 +59,16 @@ export class OrdemColeta {
 
   @Column({ type: 'enum', enum: StatusOrdem, default: StatusOrdem.AGUARDANDO })
   status: StatusOrdem;
+
+  @Column({
+    name: 'peso_estimado_kg',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    transformer: decimalParaNumero,
+  })
+  pesoEstimadoKg: number | null;
 
   @Column({ type: 'text', nullable: true })
   observacao: string | null;

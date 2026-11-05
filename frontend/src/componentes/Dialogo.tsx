@@ -1,4 +1,5 @@
-import { type ReactNode, useEffect, useRef } from 'react'
+import { X } from 'lucide-react'
+import { type ReactNode, useEffect, useId, useRef } from 'react'
 
 interface Props {
   aberto: boolean
@@ -9,6 +10,7 @@ interface Props {
 
 export function Dialogo({ aberto, titulo, aoFechar, children }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
+  const idTitulo = useId()
 
   useEffect(() => {
     const dialogo = ref.current
@@ -18,11 +20,11 @@ export function Dialogo({ aberto, titulo, aoFechar, children }: Props) {
   }, [aberto])
 
   return (
-    <dialog ref={ref} className="dialogo" onClose={aoFechar} aria-labelledby="dialogo-titulo">
+    <dialog ref={ref} className="dialogo" onClose={aoFechar} aria-labelledby={idTitulo}>
       <header className="dialogo__topo">
-        <h2 id="dialogo-titulo">{titulo}</h2>
+        <h2 id={idTitulo}>{titulo}</h2>
         <button type="button" className="botao-icone" onClick={aoFechar} aria-label="Fechar">
-          ×
+          <X size={20} aria-hidden />
         </button>
       </header>
       {aberto && children}

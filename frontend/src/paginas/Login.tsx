@@ -1,3 +1,15 @@
+import {
+  ArrowRight,
+  ClipboardList,
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  Lock,
+  Mail,
+  Smartphone,
+  Sparkles,
+  Truck,
+} from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { rotaInicial } from '../auth/contexto.ts'
@@ -9,6 +21,7 @@ export function Login() {
   const navegar = useNavigate()
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
+  const [mostrarSenha, setMostrarSenha] = useState(false)
   const [erro, setErro] = useState<unknown>(null)
   const [enviando, setEnviando] = useState(false)
 
@@ -29,41 +42,103 @@ export function Login() {
 
   return (
     <main className="login">
-      <section className="login__marca">
-        <img src="/favicon.svg" alt="" width={56} height={56} />
-        <h1>SIGCF</h1>
-        <p>Gestão de coleta e frota para pequenas e médias transportadoras.</p>
+      <section className="login__lado">
+        <div className="marca">
+          <span className="marca__icone">
+            <Truck size={20} strokeWidth={2.25} aria-hidden />
+          </span>
+          <span className="marca__textos">
+            <strong className="marca__nome">SIGCF</strong>
+            <span className="marca__sub">Gestão de coleta e frota</span>
+          </span>
+        </div>
+
+        <h1 className="login__titulo">
+          Coletas organizadas, do <em>pedido</em> à <em>conclusão</em>.
+        </h1>
+
+        <ul className="login__beneficios">
+          <li>
+            <ClipboardList aria-hidden />
+            Pedidos registrados em um só lugar
+          </li>
+          <li>
+            <Smartphone aria-hidden />
+            Motoristas atualizam o status pelo celular
+          </li>
+          <li>
+            <Sparkles aria-hidden />
+            Alertas das coletas que os clientes costumam pedir
+          </li>
+        </ul>
+
+        <p className="login__rodape">Sistema Inteligente de Gestão de Coleta e Frota</p>
+        <Truck className="login__decoracao" size={340} strokeWidth={0.9} aria-hidden />
       </section>
 
-      <form className="login__form cartao" onSubmit={enviar}>
-        <h2>Entrar</h2>
-        <label className="campo">
-          <span>E-mail</span>
-          <input
-            type="email"
-            autoComplete="username"
-            inputMode="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoFocus
-          />
-        </label>
-        <label className="campo">
-          <span>Senha</span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-            required
-          />
-        </label>
-        <MensagemErro erro={erro} />
-        <button type="submit" className="botao botao--primario botao--largo" disabled={enviando}>
-          {enviando ? 'Entrando…' : 'Entrar'}
-        </button>
-      </form>
+      <section className="login__area">
+        <form className="login__form" onSubmit={enviar}>
+          <div>
+            <h2>Entrar</h2>
+            <p className="texto-suave">Use o e-mail e a senha cadastrados pelo gestor.</p>
+          </div>
+
+          <label className="campo">
+            <span>E-mail</span>
+            <span className="campo-com-icone">
+              <Mail size={18} aria-hidden />
+              <input
+                type="email"
+                autoComplete="username"
+                inputMode="email"
+                placeholder="nome@empresa.com.br"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
+            </span>
+          </label>
+
+          <label className="campo">
+            <span>Senha</span>
+            <span className="campo-com-icone">
+              <Lock size={18} aria-hidden />
+              <input
+                type={mostrarSenha ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="botao-icone campo__alternar"
+                onClick={() => setMostrarSenha((m) => !m)}
+                aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {mostrarSenha ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+              </button>
+            </span>
+          </label>
+
+          <MensagemErro erro={erro} />
+
+          <button type="submit" className="botao botao--primario botao--largo botao--grande" disabled={enviando}>
+            {enviando ? (
+              <>
+                <LoaderCircle size={18} className="girar" aria-hidden />
+                Entrando…
+              </>
+            ) : (
+              <>
+                Entrar
+                <ArrowRight size={18} aria-hidden />
+              </>
+            )}
+          </button>
+        </form>
+      </section>
     </main>
   )
 }

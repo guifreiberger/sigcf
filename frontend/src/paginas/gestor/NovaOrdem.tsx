@@ -1,30 +1,28 @@
+import { Check, ChevronLeft, LoaderCircle } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useCadastro, useCriarOrdem } from '../../api/consultas.ts'
 import { MensagemErro } from '../../componentes/Estados.tsx'
 import { formatarKg, formatarPlaca, hojeLocal } from '../../util/formatos.ts'
 
 export function NovaOrdem() {
   const navegar = useNavigate()
+  const [parametros] = useSearchParams()
   const clientes = useCadastro('clientes', true)
   const veiculos = useCadastro('veiculos', true)
   const motoristas = useCadastro('motoristas', true)
   const criar = useCriarOrdem()
 
-  const [clienteId, setClienteId] = useState('')
+  const [clienteId, setClienteId] = useState(parametros.get('clienteId') ?? '')
   const [veiculoId, setVeiculoId] = useState('')
   const [motoristaId, setMotoristaId] = useState('')
-  const [dataColeta, setDataColeta] = useState(hojeLocal())
-  const [endereco, setEndereco] = useState('')
-  const [enderecoEditado, setEnderecoEditado] = useState(false)
+  const [dataColeta, setDataColeta] = useState(parametros.get('data') ?? hojeLocal())
+  const [enderecoEditado, setEnderecoEditado] = useState<string | null>(null)
+  const [pesoEstimado, setPesoEstimado] = useState('')
   const [observacao, setObservacao] = useState('')
 
-  function escolherCliente(id: string) {
-    setClienteId(id)
-    if (!enderecoEditado) {
-      setEndereco(clientes.data?.find((c) => c.id === Number(id))?.endereco ?? '')
-    }
-  }
+  const enderecoDoCliente = clientes.data?.find((c) => c.id === Number(clienteId))?.endereco ?? ''
+  const endereco = enderecoEditado ?? enderecoDoCliente
 
   function enviar(evento: FormEvent) {
     evento.preventDefault()
@@ -35,6 +33,7 @@ export function NovaOrdem() {
         motoristaId: Number(motoristaId),
         dataColeta,
         enderecoColeta: endereco.trim() || undefined,
+        pesoEstimadoKg: pesoEstimado ? Number(pesoEstimado) : undefined,
         observacao: observacao.trim() || undefined,
       },
       { onSuccess: (ordem) => navegar(`/gestor/ordens/${ordem.id}`, { replace: true }) },
@@ -51,7 +50,8 @@ export function NovaOrdem() {
       <header className="pagina__topo">
         <div>
           <Link to="/gestor/ordens" className="voltar">
-            ← Ordens
+            <ChevronLeft size={16} aria-hidden />
+            Ordens
           </Link>
           <h1>Nova ordem de coleta</h1>
         </div>
@@ -66,7 +66,7 @@ export function NovaOrdem() {
       <form className="cartao formulario" onSubmit={enviar}>
         <label className="campo">
           <span>Cliente</span>
-          <select value={clienteId} onChange={(e) => escolherCliente(e.target.value)} required>
+          <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} required>
             <option value="">Selecione…</option>
             {clientes.data?.map((c) => (
               <option key={c.id} value={c.id}>
@@ -80,10 +80,7 @@ export function NovaOrdem() {
           <span>Endereço da coleta</span>
           <input
             value={endereco}
-            onChange={(e) => {
-              setEndereco(e.target.value)
-              setEnderecoEditado(true)
-            }}
+            onChange={(e) => setEnderecoEditado(e.target.value)}
             maxLength={255}
             placeholder="Preenchido com o endereço do cliente"
           />
@@ -124,6 +121,21 @@ export function NovaOrdem() {
               required
             />
           </label>
+
+          <label className="campo">
+            <span>
+              Peso estimado (kg) <small className="texto-suave">(opcional)</small>
+            </span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0.01}
+              step={0.01}
+              value={pesoEstimado}
+              onChange={(e) => setPesoEstimado(e.target.value)}
+              placeholder="Informado pelo cliente"
+            />
+          </label>
         </div>
 
         <label className="campo">
@@ -138,6 +150,11 @@ export function NovaOrdem() {
             Cancelar
           </Link>
           <button type="submit" className="botao botao--primario" disabled={criar.isPending}>
+            {criar.isPending ? (
+              <LoaderCircle size={18} className="girar" aria-hidden />
+            ) : (
+              <Check size={18} aria-hidden />
+            )}
             {criar.isPending ? 'Criando…' : 'Criar ordem'}
           </button>
         </footer>

@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { api, definirAoExpirarSessao, lerSessao, salvarSessao } from '../api/cliente.ts'
 import type { Sessao, UsuarioSessao } from '../api/tipos.ts'
+import { cancelarInscricaoDoAparelho } from '../util/notificacoes.ts'
 import { AuthContext } from './contexto.ts'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -9,6 +10,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
 
   const sair = useCallback(() => {
+    void cancelarInscricaoDoAparelho().catch(() => undefined)
     salvarSessao(null)
     setSessao(null)
     queryClient.clear()

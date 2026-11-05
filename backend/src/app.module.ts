@@ -1,12 +1,20 @@
-import { Module } from '@nestjs/common';
+import {
+  type MiddlewareConsumer,
+  Module,
+  type NestModule,
+} from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module.js';
 import { ClientesModule } from './clientes/clientes.module.js';
+import { RegistroDeRequisicoes } from './common/registro-de-requisicoes.middleware.js';
 import { opcoesTypeOrm } from './database/typeorm.config.js';
 import { HealthController } from './health.controller.js';
+import { InteligenciaModule } from './inteligencia/inteligencia.module.js';
 import { MotoristasModule } from './motoristas/motoristas.module.js';
+import { NotificacoesModule } from './notificacoes/notificacoes.module.js';
 import { OrdensModule } from './ordens/ordens.module.js';
+import { RastreamentoModule } from './rastreamento/rastreamento.module.js';
 import { VeiculosModule } from './veiculos/veiculos.module.js';
 
 @Module({
@@ -20,7 +28,14 @@ import { VeiculosModule } from './veiculos/veiculos.module.js';
     VeiculosModule,
     ClientesModule,
     OrdensModule,
+    InteligenciaModule,
+    NotificacoesModule,
+    RastreamentoModule,
   ],
   controllers: [HealthController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumidor: MiddlewareConsumer) {
+    consumidor.apply(RegistroDeRequisicoes).forRoutes('{*caminho}');
+  }
+}

@@ -1,0 +1,24 @@
+name: Melhoria
+description: Sugira uma funcionalidade nova ou uma mudança
+title: "[Melhoria] "
+labels: [melhoria]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qual problema isso resolve
+      description: Quem passa por ele (gestor, motorista, atendente) e em que situação.
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Como poderia funcionar
+    validations:
+      required: true
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Critérios de aceite
+      placeholder: |
+        - Dado que..., quando..., então...

@@ -56,7 +56,7 @@ export function Clientes() {
       colunas={[
         { titulo: 'Nome', valor: (c) => <strong>{c.nome}</strong> },
         { titulo: 'Telefone', valor: (c) => formatarTelefone(c.telefone) },
-        { titulo: 'Endereço', valor: (c) => c.endereco },
+        { titulo: 'Endereço', valor: (c) => c.endereco, quebraLinha: true },
       ]}
       campos={[
         { nome: 'nome', rotulo: 'Nome', obrigatorio: true, maxLength: 120 },

@@ -1,8 +1,10 @@
+import { Ban, Building2, ChevronLeft, Info, MapPin, MapPinOff, Truck, UserRound, Weight } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useAlterarStatus, useOrdem } from '../../api/consultas.ts'
 import { DialogoMotivo } from '../../componentes/DialogoMotivo.tsx'
 import { Carregando, MensagemErro } from '../../componentes/Estados.tsx'
+import { IconeStatus } from '../../componentes/IconeStatus.tsx'
 import { StatusBadge } from '../../componentes/StatusBadge.tsx'
 import {
   formatarData,
@@ -10,8 +12,19 @@ import {
   formatarKg,
   formatarPlaca,
   formatarTelefone,
+  linkCoordenadas,
   ROTULO_STATUS,
 } from '../../util/formatos.ts'
+import { TrajetoDaOrdem } from './TrajetoDaOrdem.tsx'
+
+function Voltar() {
+  return (
+    <Link to="/gestor/ordens" className="voltar">
+      <ChevronLeft size={16} aria-hidden />
+      Ordens
+    </Link>
+  )
+}
 
 export function DetalheOrdem() {
   const id = Number(useParams().id)
@@ -23,9 +36,7 @@ export function DetalheOrdem() {
   if (ordem.error || !ordem.data) {
     return (
       <>
-        <Link to="/gestor/ordens" className="voltar">
-          ← Ordens
-        </Link>
+        <Voltar />
         <MensagemErro erro={ordem.error} />
       </>
     )
@@ -38,9 +49,7 @@ export function DetalheOrdem() {
     <>
       <header className="pagina__topo">
         <div>
-          <Link to="/gestor/ordens" className="voltar">
-            ← Ordens
-          </Link>
+          <Voltar />
           <h1>
             Ordem #{o.id} <StatusBadge status={o.status} />
           </h1>
@@ -50,35 +59,58 @@ export function DetalheOrdem() {
         </div>
         {podeCancelar && (
           <button type="button" className="botao botao--perigo-contorno" onClick={() => setCancelando(true)}>
+            <Ban size={18} aria-hidden />
             Cancelar ordem
           </button>
         )}
       </header>
 
+      <TrajetoDaOrdem ordem={o} />
+
       <div className="grade-detalhe">
         <section className="cartao">
           <h2>Dados da coleta</h2>
           <dl className="definicoes">
-            <dt>Cliente</dt>
+            <dt>
+              <Building2 size={16} aria-hidden />
+              Cliente
+            </dt>
             <dd>
               {o.cliente.nome}
               <small className="texto-suave bloco">{formatarTelefone(o.cliente.telefone)}</small>
             </dd>
-            <dt>Endereço</dt>
+            <dt>
+              <MapPin size={16} aria-hidden />
+              Endereço
+            </dt>
             <dd>{o.enderecoColeta}</dd>
-            <dt>Motorista</dt>
+            <dt>
+              <Weight size={16} aria-hidden />
+              Peso estimado
+            </dt>
+            <dd>{o.pesoEstimadoKg != null ? formatarKg(o.pesoEstimadoKg) : 'Não informado'}</dd>
+            <dt>
+              <UserRound size={16} aria-hidden />
+              Motorista
+            </dt>
             <dd>
               {o.motorista?.nome}
               <small className="texto-suave bloco">{formatarTelefone(o.motorista?.telefone ?? null)}</small>
             </dd>
-            <dt>Veículo</dt>
+            <dt>
+              <Truck size={16} aria-hidden />
+              Veículo
+            </dt>
             <dd>
               {formatarPlaca(o.veiculo.placa)} — {o.veiculo.modelo}
               <small className="texto-suave bloco">Capacidade {formatarKg(o.veiculo.capacidadeKg)}</small>
             </dd>
             {o.observacao && (
               <>
-                <dt>Observações</dt>
+                <dt>
+                  <Info size={16} aria-hidden />
+                  Observações
+                </dt>
                 <dd className="pre-linha">{o.observacao}</dd>
               </>
             )}
@@ -90,6 +122,9 @@ export function DetalheOrdem() {
           <ol className="linha-tempo">
             {o.historico?.map((h) => (
               <li key={h.id} className={`linha-tempo__item linha-tempo__item--${h.statusNovo.toLowerCase()}`}>
+                <span className="linha-tempo__icone">
+                  <IconeStatus status={h.statusNovo} size={16} />
+                </span>
                 <div className="linha-tempo__topo">
                   <strong>{ROTULO_STATUS[h.statusNovo]}</strong>
                   <time dateTime={h.createdAt}>{formatarDataHora(h.createdAt)}</time>
@@ -98,6 +133,25 @@ export function DetalheOrdem() {
                   {h.statusAnterior ? 'Alterado' : 'Criada'} por {h.usuario.nome}
                 </span>
                 {h.motivo && <p className="linha-tempo__motivo">“{h.motivo}”</p>}
+                {h.latitude != null && h.longitude != null ? (
+                  <a
+                    className="linha-tempo__local"
+                    href={linkCoordenadas(h.latitude, h.longitude)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <MapPin size={14} aria-hidden />
+                    Ver local no mapa
+                    {h.precisaoMetros != null && ` (precisão de ${h.precisaoMetros} m)`}
+                  </a>
+                ) : (
+                  h.usuario.perfil === 'MOTORISTA' && (
+                    <span className="linha-tempo__local texto-suave">
+                      <MapPinOff size={14} aria-hidden />
+                      Localização não registrada
+                    </span>
+                  )
+                )}
               </li>
             ))}
           </ol>

@@ -1,4 +1,21 @@
-import { useState } from 'react'
+import {
+  Calendar,
+  Check,
+  Info,
+  LoaderCircle,
+  LocateFixed,
+  LocateOff,
+  LogOut,
+  MapPin,
+  Navigation,
+  Phone,
+  Play,
+  RefreshCw,
+  TriangleAlert,
+  Truck,
+  Weight,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useAlterarStatus, useMinhasColetas } from '../../api/consultas.ts'
 import type { Ordem, StatusOrdem } from '../../api/tipos.ts'
 import { useAuth } from '../../auth/useAuth.ts'
@@ -8,11 +25,16 @@ import { Carregando, MensagemErro, Vazio } from '../../componentes/Estados.tsx'
 import { StatusBadge } from '../../componentes/StatusBadge.tsx'
 import {
   formatarDataExtenso,
+  formatarKg,
   formatarPlaca,
   formatarTelefone,
   hojeLocal,
+  iniciais,
   linkMapa,
 } from '../../util/formatos.ts'
+import { localizacaoBloqueada, obterLocalizacao } from '../../util/localizacao.ts'
+import { AvisosColetas } from './AvisosColetas.tsx'
+import { type EstadoRastreamento, useRastreamento } from './useRastreamento.ts'
 
 const PRIORIDADE: Record<StatusOrdem, number> = {
   EM_ANDAMENTO: 0,
@@ -31,35 +53,66 @@ const MOTIVOS_FALHA = [
 
 type Acao = { ordem: Ordem; status: 'CONCLUIDA' | 'FALHA' } | null
 
+function saudacao() {
+  const hora = new Date().getHours()
+  return hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
+}
+
 export function MinhasColetas() {
   const { usuario, sair } = useAuth()
   const hoje = hojeLocal()
   const coletas = useMinhasColetas(hoje)
   const alterar = useAlterarStatus()
+  const rastreamento = useRastreamento(coletas.data?.some((o) => o.status === 'EM_ANDAMENTO') ?? false)
   const [acao, setAcao] = useState<Acao>(null)
+  const [localizando, setLocalizando] = useState<number | null>(null)
+  const [semPermissao, setSemPermissao] = useState(false)
+
+  useEffect(() => {
+    localizacaoBloqueada().then(setSemPermissao)
+  }, [])
+
+  const enviando = localizando !== null || alterar.isPending
+  const rotuloEnvio = localizando !== null ? 'Obtendo localização…' : 'Enviando…'
 
   const ordenadas = [...(coletas.data ?? [])].sort(
     (a, b) => PRIORIDADE[a.status] - PRIORIDADE[b.status] || a.id - b.id,
   )
   const pendentes = ordenadas.filter((o) => o.status === 'AGUARDANDO' || o.status === 'EM_ANDAMENTO').length
+  const progresso = ordenadas.length ? Math.round(((ordenadas.length - pendentes) / ordenadas.length) * 100) : 0
 
   function fecharAcao() {
     setAcao(null)
     alterar.reset()
   }
 
-  function executar(ordem: Ordem, status: StatusOrdem, motivo?: string) {
-    alterar.mutate({ id: ordem.id, status, motivo }, { onSuccess: () => setAcao(null) })
+  async function executar(ordem: Ordem, status: StatusOrdem, motivo?: string) {
+    setLocalizando(ordem.id)
+    const localizacao = await obterLocalizacao()
+    // Depois de finalizar, o servidor recusa pontos; então o que estiver na fila vai antes.
+    if (status !== 'EM_ANDAMENTO') await rastreamento.enviarPendentes()
+    setLocalizando(null)
+    if (!localizacao) localizacaoBloqueada().then(setSemPermissao)
+    alterar.mutate(
+      { id: ordem.id, status, motivo, localizacao: localizacao ?? undefined },
+      { onSuccess: () => setAcao(null) },
+    )
   }
 
   return (
     <div className="motorista">
       <header className="motorista__topo">
-        <div>
-          <small>Olá,</small>
-          <strong>{usuario?.nome.split(' ')[0]}</strong>
+        <div className="motorista__saudacao">
+          <span className="avatar" aria-hidden>
+            {iniciais(usuario?.nome ?? '')}
+          </span>
+          <div>
+            <small>{saudacao()},</small>
+            <strong>{usuario?.nome.split(' ')[0]}</strong>
+          </div>
         </div>
-        <button type="button" className="botao botao--fantasma-claro" onClick={sair}>
+        <button type="button" className="botao botao--fantasma-claro botao--pequeno" onClick={sair}>
+          <LogOut size={16} aria-hidden />
           Sair
         </button>
       </header>
@@ -76,13 +129,36 @@ export function MinhasColetas() {
           )}
           <button
             type="button"
-            className="botao botao--secundario botao--pequeno"
+            className="botao-icone"
             onClick={() => coletas.refetch()}
             disabled={coletas.isFetching}
+            aria-label="Atualizar coletas"
+            title="Atualizar coletas"
           >
-            {coletas.isFetching ? 'Atualizando…' : 'Atualizar'}
+            <RefreshCw size={20} className={coletas.isFetching ? 'girar' : undefined} aria-hidden />
           </button>
+          {ordenadas.length > 0 && (
+            <div
+              className="progresso"
+              role="progressbar"
+              aria-label="Coletas finalizadas"
+              aria-valuenow={progresso}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div className="progresso__barra" style={{ width: `${progresso}%` }} />
+            </div>
+          )}
+          <p className="motorista__aviso">
+            <MapPin size={14} aria-hidden />
+            {semPermissao
+              ? 'A localização está bloqueada no navegador. As coletas funcionam normalmente, mas sem o registro do local.'
+              : 'Sua localização é compartilhada com o gestor somente enquanto uma coleta estiver em andamento.'}
+          </p>
         </section>
+
+        <Compartilhamento estado={rastreamento.estado} pendentes={rastreamento.pendentes} />
+        <AvisosColetas />
 
         <MensagemErro erro={coletas.error} />
         {!acao && <MensagemErro erro={alterar.error} />}
@@ -90,14 +166,15 @@ export function MinhasColetas() {
         {coletas.isPending ? (
           <Carregando texto="Buscando suas coletas…" />
         ) : ordenadas.length === 0 ? (
-          <Vazio>Nenhuma coleta atribuída a você hoje. Se isso parecer errado, fale com o gestor.</Vazio>
+          <Vazio icone={Calendar}>Nenhuma coleta atribuída a você hoje. Se isso parecer errado, fale com o gestor.</Vazio>
         ) : (
           <ul className="coletas">
             {ordenadas.map((ordem) => (
               <li key={ordem.id}>
                 <CartaoColeta
                   ordem={ordem}
-                  ocupado={alterar.isPending && alterar.variables?.id === ordem.id}
+                  ocupado={localizando === ordem.id || (alterar.isPending && alterar.variables?.id === ordem.id)}
+                  rotuloOcupado={rotuloEnvio}
                   aoIniciar={() => executar(ordem, 'EM_ANDAMENTO')}
                   aoConcluir={() => setAcao({ ordem, status: 'CONCLUIDA' })}
                   aoFalhar={() => setAcao({ ordem, status: 'FALHA' })}
@@ -123,10 +200,10 @@ export function MinhasColetas() {
               <button
                 type="button"
                 className="botao botao--sucesso"
-                disabled={alterar.isPending}
+                disabled={enviando}
                 onClick={() => executar(acao.ordem, 'CONCLUIDA')}
               >
-                {alterar.isPending ? 'Enviando…' : 'Confirmar conclusão'}
+                {enviando ? rotuloEnvio : 'Confirmar conclusão'}
               </button>
             </footer>
           </div>
@@ -139,7 +216,7 @@ export function MinhasColetas() {
         descricao={`O que impediu a coleta em ${acao?.ordem.cliente.nome ?? ''}? O gestor verá este motivo.`}
         rotuloConfirmar="Reportar falha"
         sugestoes={MOTIVOS_FALHA}
-        enviando={alterar.isPending}
+        enviando={enviando}
         erro={alterar.error}
         aoFechar={fecharAcao}
         aoConfirmar={(motivo) => acao && executar(acao.ordem, 'FALHA', motivo)}
@@ -148,15 +225,47 @@ export function MinhasColetas() {
   )
 }
 
+function Compartilhamento({ estado, pendentes }: { estado: EstadoRastreamento; pendentes: number }) {
+  if (estado === 'desligado') return null
+  const semGps = estado === 'sem-gps'
+  const Icone = semGps ? LocateOff : LocateFixed
+
+  return (
+    <section className={`rastreio ${semGps ? 'rastreio--alerta' : ''}`} role="status">
+      <span className="rastreio__icone">
+        <Icone size={18} aria-hidden />
+      </span>
+      <p>
+        <strong>
+          {semGps
+            ? 'Não foi possível acessar o GPS'
+            : estado === 'aguardando-gps'
+              ? 'Procurando o sinal do GPS…'
+              : 'Compartilhando sua localização com o gestor'}
+        </strong>
+        {semGps
+          ? 'Libere a localização do navegador para o gestor acompanhar a coleta.'
+          : 'A tela fica ligada até você concluir ou reportar falha na coleta.'}
+        {pendentes > 0 && (
+          <small>
+            {pendentes === 1 ? '1 posição aguardando' : `${pendentes} posições aguardando`} conexão para envio
+          </small>
+        )}
+      </p>
+    </section>
+  )
+}
+
 interface PropsCartao {
   ordem: Ordem
   ocupado: boolean
+  rotuloOcupado: string
   aoIniciar: () => void
   aoConcluir: () => void
   aoFalhar: () => void
 }
 
-function CartaoColeta({ ordem, ocupado, aoIniciar, aoConcluir, aoFalhar }: PropsCartao) {
+function CartaoColeta({ ordem, ocupado, rotuloOcupado, aoIniciar, aoConcluir, aoFalhar }: PropsCartao) {
   const pode = (status: StatusOrdem) => ordem.transicoesPermitidas.includes(status)
   const finalizada = ordem.transicoesPermitidas.length === 0
 
@@ -168,38 +277,64 @@ function CartaoColeta({ ordem, ocupado, aoIniciar, aoConcluir, aoFalhar }: Props
       </header>
 
       <h2 className="coleta__cliente">{ordem.cliente.nome}</h2>
-      <p className="coleta__endereco">{ordem.enderecoColeta}</p>
+      <p className="coleta__linha coleta__endereco">
+        <MapPin size={17} aria-hidden />
+        {ordem.enderecoColeta}
+      </p>
 
       <div className="coleta__atalhos">
         <a className="botao botao--secundario" href={linkMapa(ordem.enderecoColeta)} target="_blank" rel="noreferrer">
+          <Navigation size={16} aria-hidden />
           Abrir no mapa
         </a>
         {ordem.cliente.telefone && (
           <a className="botao botao--secundario" href={`tel:${ordem.cliente.telefone}`}>
-            Ligar {formatarTelefone(ordem.cliente.telefone)}
+            <Phone size={16} aria-hidden />
+            {formatarTelefone(ordem.cliente.telefone)}
           </a>
         )}
       </div>
 
-      <p className="coleta__veiculo texto-suave">
-        Veículo {formatarPlaca(ordem.veiculo.placa)} · {ordem.veiculo.modelo}
+      <p className="coleta__meta">
+        <span>
+          <Truck size={15} aria-hidden />
+          {formatarPlaca(ordem.veiculo.placa)} · {ordem.veiculo.modelo}
+        </span>
+        {ordem.pesoEstimadoKg != null && (
+          <span>
+            <Weight size={15} aria-hidden />
+            cerca de {formatarKg(ordem.pesoEstimadoKg)}
+          </span>
+        )}
       </p>
-      {ordem.observacao && <p className="coleta__observacao pre-linha">{ordem.observacao}</p>}
+      {ordem.observacao && (
+        <p className="coleta__observacao pre-linha">
+          <Info size={17} aria-hidden />
+          <span>{ordem.observacao}</span>
+        </p>
+      )}
 
       {!finalizada && (
         <footer className="coleta__acoes">
           {pode('EM_ANDAMENTO') && (
             <button type="button" className="botao botao--primario botao--grande" onClick={aoIniciar} disabled={ocupado}>
-              {ocupado ? 'Enviando…' : 'Iniciar coleta'}
+              {ocupado ? (
+                <LoaderCircle size={20} className="girar" aria-hidden />
+              ) : (
+                <Play size={20} aria-hidden />
+              )}
+              {ocupado ? rotuloOcupado : 'Iniciar coleta'}
             </button>
           )}
           {pode('CONCLUIDA') && (
             <button type="button" className="botao botao--sucesso botao--grande" onClick={aoConcluir} disabled={ocupado}>
+              <Check size={20} aria-hidden />
               Concluir coleta
             </button>
           )}
           {pode('FALHA') && (
             <button type="button" className="botao botao--perigo-contorno botao--grande" onClick={aoFalhar} disabled={ocupado}>
+              <TriangleAlert size={20} aria-hidden />
               Reportar falha
             </button>
           )}

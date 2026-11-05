@@ -1,6 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, montarQuery } from './cliente.ts'
-import type { Cliente, Motorista, Ordem, Resumo, StatusOrdem, Veiculo } from './tipos.ts'
+import type {
+  Cliente,
+  Inteligencia,
+  Localizacao,
+  Motorista,
+  MotoristaEmRota,
+  Ordem,
+  Resumo,
+  StatusOrdem,
+  Trajeto,
+  Veiculo,
+} from './tipos.ts'
 
 export type Recurso = 'motoristas' | 'veiculos' | 'clientes'
 
@@ -82,22 +93,56 @@ export function useCriarOrdem() {
   return useMutation({
     mutationFn: (dados: object) => api<Ordem>('/ordens', { metodo: 'POST', corpo: dados }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ordens'] })
-      queryClient.invalidateQueries({ queryKey: ['resumo'] })
+      for (const chave of ['ordens', 'resumo', 'inteligencia']) {
+        queryClient.invalidateQueries({ queryKey: [chave] })
+      }
     },
+  })
+}
+
+export function useInteligencia() {
+  return useQuery({
+    queryKey: ['inteligencia'],
+    queryFn: () => api<Inteligencia>('/inteligencia/clientes'),
   })
 }
 
 export function useAlterarStatus() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, status, motivo }: { id: number; status: StatusOrdem; motivo?: string }) =>
-      api<Ordem>(`/ordens/${id}/status`, { metodo: 'PATCH', corpo: { status, motivo } }),
+    mutationFn: ({
+      id,
+      status,
+      motivo,
+      localizacao,
+    }: {
+      id: number
+      status: StatusOrdem
+      motivo?: string
+      localizacao?: Localizacao
+    }) => api<Ordem>(`/ordens/${id}/status`, { metodo: 'PATCH', corpo: { status, motivo, localizacao } }),
     onSuccess: (ordem) => {
       queryClient.setQueryData(['ordem', ordem.id], ordem)
-      for (const chave of ['ordens', 'resumo', 'minhas']) {
+      for (const chave of ['ordens', 'resumo', 'minhas', 'trajeto', 'em-rota']) {
         queryClient.invalidateQueries({ queryKey: [chave] })
       }
     },
+  })
+}
+
+export function useTrajeto(ordemId: number) {
+  return useQuery({
+    queryKey: ['trajeto', ordemId],
+    queryFn: () => api<Trajeto>(`/rastreamento/ordens/${ordemId}`),
+    // Ao vivo só enquanto a coleta está em andamento; depois o trajeto não muda mais.
+    refetchInterval: (query) => (query.state.data?.status === 'EM_ANDAMENTO' ? 10_000 : false),
+  })
+}
+
+export function useEmRota(atualizarACada?: number) {
+  return useQuery({
+    queryKey: ['em-rota'],
+    queryFn: () => api<MotoristaEmRota[]>('/rastreamento/em-rota'),
+    refetchInterval: atualizarACada,
   })
 }

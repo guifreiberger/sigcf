@@ -7,6 +7,7 @@ import {
   PrimaryGeneratedColumn,
   type Relation,
 } from 'typeorm';
+import { decimalParaNumero } from '../common/decimal.transformer.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
 import { OrdemColeta } from './ordem-coleta.entity.js';
 import { StatusOrdem } from './status-ordem.enum.js';
@@ -43,6 +44,27 @@ export class HistoricoStatus {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   motivo: string | null;
+
+  @Column({
+    type: 'decimal',
+    precision: 9,
+    scale: 6,
+    nullable: true,
+    transformer: decimalParaNumero,
+  })
+  latitude: number | null;
+
+  @Column({
+    type: 'decimal',
+    precision: 9,
+    scale: 6,
+    nullable: true,
+    transformer: decimalParaNumero,
+  })
+  longitude: number | null;
+
+  @Column({ name: 'precisao_metros', type: 'int', nullable: true })
+  precisaoMetros: number | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'datetime' })
   createdAt: Date;

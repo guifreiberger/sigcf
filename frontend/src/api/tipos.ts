@@ -45,11 +45,20 @@ export interface Cliente {
   ativo: boolean
 }
 
+export interface Localizacao {
+  latitude: number
+  longitude: number
+  precisaoMetros?: number
+}
+
 export interface Historico {
   id: number
   statusAnterior: StatusOrdem | null
   statusNovo: StatusOrdem
   motivo: string | null
+  latitude: number | null
+  longitude: number | null
+  precisaoMetros: number | null
   createdAt: string
   usuario: { id: number; nome: string; perfil: Perfil }
 }
@@ -61,6 +70,7 @@ export interface Ordem {
   motoristaId: number
   enderecoColeta: string
   dataColeta: string
+  pesoEstimadoKg: number | null
   status: StatusOrdem
   observacao: string | null
   createdAt: string
@@ -73,8 +83,81 @@ export interface Ordem {
   transicoesPermitidas: StatusOrdem[]
 }
 
+export type TipoRecorrencia = 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'INTERVALO' | 'INSUFICIENTE'
+
+export type TendenciaPeso = 'ALTA' | 'QUEDA' | 'ESTAVEL' | 'INSUFICIENTE'
+
+export type TipoAlerta = 'ATRASADA' | 'PREVISTA'
+
+export interface AnaliseCliente {
+  clienteId: number
+  cliente: string
+  totalColetas: number
+  ultimaColeta: string | null
+  recorrencia: {
+    tipo: TipoRecorrencia
+    descricao: string
+    intervaloMedioDias: number | null
+    regularidade: number | null
+  }
+  proximaPrevista: string | null
+  proximaAgendada: string | null
+  alerta: TipoAlerta | null
+  peso: {
+    mediaKg: number | null
+    amostras: number
+    tendencia: TendenciaPeso
+    variacaoMensalPct: number | null
+    r2: number | null
+  }
+}
+
+export interface AlertaColeta {
+  clienteId: number
+  cliente: string
+  tipo: TipoAlerta
+  dataPrevista: string
+  dias: number
+  padrao: string
+}
+
+export interface Inteligencia {
+  hoje: string
+  janelaDias: number
+  alertas: AlertaColeta[]
+  clientes: AnaliseCliente[]
+}
+
 export interface Resumo {
   data: string
   total: number
   porStatus: Record<StatusOrdem, number>
+}
+
+export interface PontoTrajeto {
+  latitude: number
+  longitude: number
+  precisaoMetros: number | null
+  registradoEm: string
+}
+
+export interface Trajeto {
+  ordemId: number
+  status: StatusOrdem
+  inicio: string | null
+  fim: string | null
+  distanciaMetros: number
+  duracaoSegundos: number | null
+  ultimaPosicao: PontoTrajeto | null
+  pontos: PontoTrajeto[]
+}
+
+export interface MotoristaEmRota {
+  ordemId: number
+  motorista: { id: number; nome: string }
+  cliente: string
+  enderecoColeta: string
+  placa: string
+  inicio: string | null
+  ultimaPosicao: PontoTrajeto | null
 }

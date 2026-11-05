@@ -2,6 +2,7 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+coverage/
 
 .env
 .env.local
@@ -11,3 +12,11 @@ build/
 
 .DS_Store
 Thumbs.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+*.plano

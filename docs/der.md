@@ -8,6 +8,8 @@ erDiagram
     VEICULO ||--o{ ORDEM_COLETA : "atende"
     ORDEM_COLETA ||--o{ HISTORICO_STATUS : "registra"
     USUARIO ||--o{ HISTORICO_STATUS : "efetua"
+    USUARIO ||--o{ INSCRICAO_PUSH : "recebe avisos em"
+    ORDEM_COLETA ||--o{ PONTO_TRAJETO : "percorre"
 
     USUARIO {
         int id PK
@@ -50,6 +52,7 @@ erDiagram
         int criado_por_id FK
         varchar endereco_coleta
         date data_coleta
+        decimal peso_estimado_kg "opcional"
         enum status "AGUARDANDO | EM_ANDAMENTO | CONCLUIDA | FALHA | CANCELADA"
         text observacao
         datetime created_at
@@ -63,6 +66,28 @@ erDiagram
         enum status_anterior "nulo na criacao"
         enum status_novo
         varchar motivo
+        decimal latitude "nulo se nao informada"
+        decimal longitude "nulo se nao informada"
+        int precisao_metros
+        datetime created_at
+    }
+
+    INSCRICAO_PUSH {
+        int id PK
+        int usuario_id FK
+        varchar endpoint UK
+        varchar p256dh
+        varchar auth
+        datetime created_at
+    }
+
+    PONTO_TRAJETO {
+        int id PK
+        int ordem_id FK
+        decimal latitude
+        decimal longitude
+        int precisao_metros "nulo se o GPS nao informar"
+        datetime registrado_em "horario do celular"
         datetime created_at
     }
 ```
@@ -76,6 +101,14 @@ erDiagram
 **`endereco_coleta` na ordem (snapshot).** O endereço é copiado do cliente no momento da criação e pode ser ajustado. Se o cliente mudar de endereço, as ordens antigas continuam registrando onde a coleta de fato ocorreu.
 
 **`historico_status` (trilha de auditoria).** Cada mudança de status grava quem alterou, quando, de qual status para qual e o motivo (obrigatório em falha e cancelamento). É o que sustenta a rastreabilidade prometida ao gestor.
+
+**Peso estimado na ordem.** O atendente registra o peso que o cliente informa ao pedir a coleta. O campo é opcional para não bloquear pedidos em que o cliente não sabe estimar, e alimenta a análise de peso médio e tendência da tela de Inteligência.
+
+**Localização nas ações do motorista.** Quando o motorista inicia, conclui ou reporta falha em uma coleta, o registro de histórico guarda a latitude, a longitude e a precisão informada pelo GPS do celular, somente para ações do motorista. Se a permissão for negada ou o GPS não responder, a ação é registrada sem coordenadas. As colunas usam `DECIMAL(9,6)`, precisão de cerca de 11 cm, suficiente para identificar o local do atendimento.
+
+**Pontos do trajeto (RF11).** Enquanto a coleta está em andamento, o celular do motorista envia leituras do GPS, gravadas em `ponto_trajeto` com o horário em que foram feitas no aparelho (`registrado_em`, com milissegundos), e não o do envio, para que lotes atrasados por falta de sinal entrem na ordem certa. Fora de uma coleta em andamento, o servidor recusa os pontos, pelo princípio da necessidade da LGPD. A duração e a distância da corrida não são colunas da ordem: são calculadas a partir do histórico de status e dos pontos, evitando dados duplicados que poderiam divergir. O índice `(ordem_id, registrado_em)` atende às duas consultas do recurso: o trajeto de uma ordem em ordem cronológica e a última posição de cada coleta em andamento. A exclusão de uma ordem apaga seus pontos (`ON DELETE CASCADE`). Detalhes em [`rastreamento.md`](rastreamento.md).
+
+**Inscrições de notificação.** Cada aparelho que ativa os avisos gera um endereço único no serviço de push do navegador (`endpoint`) e as chaves públicas usadas para criptografar a mensagem (`p256dh` e `auth`). Um usuário pode ter vários aparelhos, mas cada endereço pertence a um único usuário. A exclusão do usuário apaga suas inscrições (`ON DELETE CASCADE`).
 
 **Índice composto `(motorista_id, data_coleta)`.** A consulta mais frequente do sistema é "coletas do motorista X no dia Y" (RF03). O índice mantém essa consulta dentro do requisito de 300 ms conforme o volume cresce.
 
