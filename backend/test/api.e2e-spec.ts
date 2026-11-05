@@ -149,8 +149,15 @@ describe('API do SIGCF (e2e)', () => {
       expect(res.body).not.toHaveProperty('senhaHash');
     });
 
-    it('impede o motorista de acessar os cadastros', () =>
-      api().get('/api/veiculos').set(como('joao')).expect(403));
+    it('impede o motorista de acessar os cadastros', async () => {
+      await api().get('/api/clientes').set(como('joao')).expect(403);
+      await api().get('/api/motoristas').set(como('joao')).expect(403);
+      await api().post('/api/veiculos').set(como('joao')).send({}).expect(403);
+      await api().get('/api/veiculos/1').set(como('joao')).expect(403);
+    });
+
+    it('deixa o motorista consultar a frota, para aceitar coletas disponíveis', () =>
+      api().get('/api/veiculos?ativo=true').set(como('joao')).expect(200));
 
     it('responde com os cabeçalhos de segurança', async () => {
       const res = await api().get('/api/health').expect(200);
