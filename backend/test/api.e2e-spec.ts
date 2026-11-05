@@ -156,6 +156,38 @@ describe('API do SIGCF (e2e)', () => {
       await api().get('/api/veiculos/1').set(como('joao')).expect(403);
     });
 
+    it('corta na hora o acesso de quem é desativado, sem esperar o token expirar', async () => {
+      const { body: novo } = await api()
+        .post('/api/motoristas')
+        .set(como('gestor'))
+        .send({
+          nome: 'Motorista Temporário',
+          email: 'temporario@e2e.local',
+          senha: 'senha-e2e',
+          telefone: '47933333333',
+        })
+        .expect(201);
+      const { body: sessao } = await api()
+        .post('/api/auth/login')
+        .send({ email: 'temporario@e2e.local', senha: 'senha-e2e' })
+        .expect(200);
+      const doTemporario = { Authorization: `Bearer ${sessao.accessToken}` };
+      await api().get('/api/ordens/minhas').set(doTemporario).expect(200);
+
+      await api()
+        .delete(`/api/motoristas/${novo.id}`)
+        .set(como('gestor'))
+        .expect(204);
+
+      const recusada = await api()
+        .get('/api/ordens/minhas')
+        .set(doTemporario)
+        .expect(401);
+      expect(recusada.body.message).toBe(
+        'Seu acesso foi desativado. Fale com o gestor.',
+      );
+    });
+
     it('deixa o motorista consultar a frota, para aceitar coletas disponíveis', () =>
       api().get('/api/veiculos?ativo=true').set(como('joao')).expect(200));
 

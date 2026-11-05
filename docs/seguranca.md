@@ -10,7 +10,7 @@ Medidas adotadas, organizadas pelas categorias do [OWASP Top 10 (2021)](https://
 | **A04 — Design inseguro** | Pular etapas do fluxo pela API, mesmo com a tela bloqueando | A máquina de estados da ordem roda no backend; o frontend só exibe os botões das transições que o backend informa como permitidas | [`transicoes.ts`](../backend/src/ordens/transicoes.ts) |
 | **A05 — Configuração incorreta** | Cabeçalhos ausentes; segredos no repositório; versão do servidor exposta | `helmet` na API e cabeçalhos próprios no nginx (CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS), sem `X-Powered-By` e sem a versão do nginx. CORS desligado, porque o frontend e a API ficam na mesma origem. Segredos só em variáveis de ambiente, com `.env` no `.gitignore`. O seed destrutivo é bloqueado em produção. Os containers rodam sem usuário root: a API como `node` e o nginx pela imagem oficial sem privilégios | [`app.setup.ts`](../backend/src/app.setup.ts), [`nginx.conf`](../frontend/nginx.conf), [`seed.ts`](../backend/src/database/seed.ts), [`backend/Dockerfile`](../backend/Dockerfile), [`frontend/Dockerfile`](../frontend/Dockerfile) |
 | **A06 — Componentes vulneráveis** | Dependência com falha conhecida | `npm audit` sem vulnerabilidades nas dependências de produção dos dois projetos. Restam alertas moderados apenas em ferramentas de build (`@nestjs/cli` e `vite-plugin-pwa`), que não entram nas imagens de produção | `package.json` de cada projeto |
-| **A07 — Falhas de autenticação** | Força bruta na senha; enumeração de usuários | Até 5 tentativas de login por minuto para cada combinação de IP e e-mail, sem bloquear colegas que entram pela mesma rede. A mensagem de erro é a mesma para e-mail inexistente, senha errada e usuário desativado. Tokens expiram em 8 horas | [`limite-de-login.guard.ts`](../backend/src/auth/limite-de-login.guard.ts), [`auth.service.ts`](../backend/src/auth/auth.service.ts) |
+| **A07 — Falhas de autenticação** | Força bruta na senha; enumeração de usuários | Até 5 tentativas de login por minuto para cada combinação de IP e e-mail, sem bloquear colegas que entram pela mesma rede. A mensagem de erro é a mesma para e-mail inexistente, senha errada e usuário desativado. Tokens expiram em 8 horas, e o guard confere a cada requisição se o usuário continua ativo, então desativar um motorista corta o acesso na hora | [`limite-de-login.guard.ts`](../backend/src/auth/limite-de-login.guard.ts), [`auth.service.ts`](../backend/src/auth/auth.service.ts), [`auth.guard.ts`](../backend/src/auth/auth.guard.ts) |
 | **A08 — Integridade de software e dados** | Build com dependências diferentes das testadas; schema alterado à mão | `npm ci` com lockfile no CI e nas imagens. O schema do banco só muda por migrations versionadas | [`ci.yml`](../.github/workflows/ci.yml), `backend/src/database/migrations` |
 | **A09 — Registro e monitoramento** | Falha em produção passar despercebida | Logs do NestJS na saída padrão do container e health check que consulta o banco. A observabilidade na nuvem entra com o deploy | [`health.controller.ts`](../backend/src/health.controller.ts) |
 | **A10 — SSRF** | Usar o servidor para fazer requisições a endereços internos | O endereço de inscrição de push só é aceito se for HTTPS de um dos serviços de push dos navegadores | [`inscricao-push.dto.ts`](../backend/src/notificacoes/dto/inscricao-push.dto.ts) |
@@ -23,8 +23,15 @@ O sistema trata só o necessário à operação: nome, e-mail, telefone, CNH opc
 
 ## Limitações conhecidas
 
-- **Token de usuário desativado:** o token é verificado pela assinatura, sem consultar o banco a cada requisição. Um motorista desativado continua com acesso até o token expirar (no máximo 8 horas). Se isso for crítico para a empresa, a saída é reduzir a validade do token ou consultar o status do usuário no guard.
 - **Limite de login em memória:** a contagem de tentativas fica na memória da instância. Com mais de uma réplica da API, cada uma conta separadamente; nesse cenário, a contagem passaria para um armazenamento compartilhado, como o Redis.
+
+## Usuário desativado perde o acesso na hora
+
+O token JWT prova quem é o usuário, mas sozinho não sabe se ele foi desativado depois do login: antes, um motorista desativado continuava com acesso até o token expirar, em até 8 horas. Agora o [`AuthGuard`](../backend/src/auth/auth.guard.ts) busca o usuário no banco a cada requisição, pela chave primária e só entre os ativos. Se ele foi desativado, a resposta é 401 com "Seu acesso foi desativado. Fale com o gestor." e o app volta para o login.
+
+A mesma consulta faz valer o **perfil atual**, e não o que estava gravado no token: uma permissão retirada também vale na hora.
+
+O custo é uma consulta por requisição, pela chave primária, que leva cerca de 1 ms e não ameaça o limite de 300 ms. Rotas públicas e tokens inválidos não chegam a consultar o banco.
 
 ## Decisões de infraestrutura
 
