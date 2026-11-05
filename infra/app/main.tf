@@ -61,7 +61,7 @@ resource "azurerm_container_app" "sigcf" {
 
   ingress {
     external_enabled = true
-    target_port      = 80
+    target_port      = 8080
 
     traffic_weight {
       latest_revision = true
@@ -88,7 +88,7 @@ resource "azurerm_container_app" "sigcf" {
 
       readiness_probe {
         transport = "HTTP"
-        port      = 80
+        port      = 8080
         path      = "/"
       }
     }

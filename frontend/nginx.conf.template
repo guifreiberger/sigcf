@@ -1,5 +1,6 @@
 server {
-    listen 80;
+    # Porta alta: o nginx roda sem root e não pode abrir portas abaixo de 1024.
+    listen 8080;
     root /usr/share/nginx/html;
     index index.html;
     server_tokens off;

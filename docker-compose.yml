@@ -62,7 +62,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${APP_PORT:-8000}:80"
+      - "${APP_PORT:-8000}:8080"
 
   # Link HTTPS público temporário: docker compose --profile app --profile tunel up -d --build
   tunel:
