@@ -723,4 +723,148 @@ describe('API do SIGCF (e2e)', () => {
         .set(como('gestor'))
         .expect(404));
   });
+
+  describe('RF12 — coleta disponível, quem pega?', () => {
+    let ordem: number;
+    const aparelhos = {
+      joao: 'https://fcm.googleapis.com/fcm/send/rf12-joao',
+      maria: 'https://fcm.googleapis.com/fcm/send/rf12-maria',
+    };
+    const coletaDisponivel = () => ({
+      clienteId: ids.cliente,
+      dataColeta: hoje(),
+      pesoEstimadoKg: 800,
+    });
+    const publicar = () =>
+      api().post('/api/ordens').set(como('gestor')).send(coletaDisponivel());
+    const aceitar = (quem: Quem, id: number, veiculoId = ids.veiculo) =>
+      api()
+        .post(`/api/ordens/${id}/aceitar`)
+        .set(como(quem))
+        .send({ veiculoId });
+    const disponiveisPara = (quem: Quem) =>
+      api().get('/api/ordens/disponiveis').set(como(quem));
+
+    beforeAll(async () => {
+      for (const quem of ['joao', 'maria'] as const) {
+        await api()
+          .post('/api/notificacoes/inscricoes')
+          .set(como(quem))
+          .send({
+            endpoint: aparelhos[quem],
+            keys: { p256dh: 'chave-p256dh-de-teste', auth: 'auth-de-teste' },
+          })
+          .expect(204);
+      }
+    });
+
+    beforeEach(() => {
+      enviados.length = 0;
+    });
+
+    it('exige motorista e veículo juntos, ou nenhum dos dois', () =>
+      api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send({ ...coletaDisponivel(), motoristaId: ids.joao })
+        .expect(400));
+
+    it('publica a coleta sem motorista e avisa todos os motoristas', async () => {
+      const res = await publicar().expect(201);
+      expect(res.body).toMatchObject({
+        status: 'DISPONIVEL',
+        motoristaId: null,
+        veiculoId: null,
+        motorista: null,
+        transicoesPermitidas: ['CANCELADA'],
+      });
+      ordem = res.body.id;
+
+      await vi.waitFor(() => expect(enviados).toHaveLength(2));
+      expect(enviados.map((e) => e.endpoint).sort()).toEqual([
+        aparelhos.joao,
+        aparelhos.maria,
+      ]);
+      expect(enviados[0].aviso).toMatchObject({
+        titulo: 'Coleta disponível: quem pega?',
+        tag: `ordem-${ordem}`,
+      });
+    });
+
+    it('mostra a coleta a todos os motoristas, sem atribuí-la a ninguém', async () => {
+      for (const quem of ['joao', 'maria'] as const) {
+        const res = await disponiveisPara(quem).expect(200);
+        expect(res.body.map((o: { id: number }) => o.id)).toEqual([ordem]);
+        expect(res.body[0]).toMatchObject({
+          cliente: { nome: 'Cliente Teste' },
+          pesoEstimadoKg: 800,
+        });
+
+        const minhas = await api()
+          .get('/api/ordens/minhas')
+          .set(como(quem))
+          .expect(200);
+        expect(minhas.body.map((o: { id: number }) => o.id)).not.toContain(
+          ordem,
+        );
+      }
+    });
+
+    it('restringe a lista e a aceitação aos motoristas', async () => {
+      await disponiveisPara('gestor').expect(403);
+      await aceitar('gestor', ordem).expect(403);
+    });
+
+    it('exige um veículo ativo para aceitar', () =>
+      aceitar('maria', ordem, ids.veiculoInativo).expect(422));
+
+    it('entrega a coleta a um só motorista quando dois aceitam ao mesmo tempo', async () => {
+      const respostas = await Promise.all([
+        aceitar('maria', ordem),
+        aceitar('joao', ordem),
+      ]);
+
+      expect(respostas.map((r) => r.status).sort()).toEqual([200, 409]);
+      const vencedora = respostas.find((r) => r.status === 200)!;
+      const perdedora = respostas.find((r) => r.status === 409)!;
+      expect(perdedora.body.message).toBe(
+        'Esta coleta já foi aceita por outro motorista.',
+      );
+      expect(vencedora.body).toMatchObject({
+        status: 'AGUARDANDO',
+        veiculoId: ids.veiculo,
+        transicoesPermitidas: ['EM_ANDAMENTO'],
+      });
+      expect(
+        vencedora.body.historico.map(
+          (h: { statusNovo: string }) => h.statusNovo,
+        ),
+      ).toEqual(['DISPONIVEL', 'AGUARDANDO']);
+
+      const vencedor =
+        vencedora.body.motoristaId === ids.joao ? 'joao' : 'maria';
+      const minhas = await api()
+        .get('/api/ordens/minhas')
+        .set(como(vencedor))
+        .expect(200);
+      expect(minhas.body.map((o: { id: number }) => o.id)).toContain(ordem);
+      expect((await disponiveisPara('joao').expect(200)).body).toEqual([]);
+    });
+
+    it('o gestor cancela uma coleta que ninguém aceitou', async () => {
+      const { body } = await publicar().expect(201);
+
+      const res = await alterarStatus('gestor', body.id, {
+        status: 'CANCELADA',
+        motivo: 'Nenhum motorista disponível',
+      }).expect(200);
+      expect(res.body.status).toBe('CANCELADA');
+
+      const tarde = await aceitar('joao', body.id).expect(409);
+      expect(tarde.body.message).toBe('Esta coleta não está mais disponível.');
+    });
+
+    it('responde 404 ao aceitar uma coleta inexistente', () =>
+      aceitar('joao', 999999).expect(404));
+  });
 });

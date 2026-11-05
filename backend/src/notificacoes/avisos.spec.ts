@@ -1,4 +1,9 @@
-import { avisoColetaCancelada, avisoNovaColeta, quando } from './avisos.js';
+import {
+  avisoColetaCancelada,
+  avisoColetaDisponivel,
+  avisoNovaColeta,
+  quando,
+} from './avisos.js';
 
 describe('avisos de notificação', () => {
   const hoje = '2026-09-27';
@@ -19,6 +24,15 @@ describe('avisos de notificação', () => {
   it('monta o aviso de nova coleta com peso e endereço', () => {
     expect(avisoNovaColeta(ordem, hoje)).toEqual({
       titulo: 'Nova coleta para você',
+      corpo: 'Malharia, hoje · cerca de 1.235 kg\nRua A, 1',
+      url: '/motorista',
+      tag: 'ordem-7',
+    });
+  });
+
+  it('convida todos os motoristas para uma coleta disponível', () => {
+    expect(avisoColetaDisponivel(ordem, hoje)).toEqual({
+      titulo: 'Coleta disponível: quem pega?',
       corpo: 'Malharia, hoje · cerca de 1.235 kg\nRua A, 1',
       url: '/motorista',
       tag: 'ordem-7',

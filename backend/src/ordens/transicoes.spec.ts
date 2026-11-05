@@ -6,7 +6,8 @@ import {
   validarTransicao,
 } from './transicoes.js';
 
-const { AGUARDANDO, EM_ANDAMENTO, CONCLUIDA, FALHA, CANCELADA } = StatusOrdem;
+const { DISPONIVEL, AGUARDANDO, EM_ANDAMENTO, CONCLUIDA, FALHA, CANCELADA } =
+  StatusOrdem;
 const { GESTOR, MOTORISTA } = Perfil;
 
 function erroDe(fn: () => void) {
@@ -26,9 +27,12 @@ describe('máquina de estados da ordem de coleta (RF04)', () => {
       [EM_ANDAMENTO, CONCLUIDA, MOTORISTA, undefined],
       [EM_ANDAMENTO, FALHA, MOTORISTA, 'Cliente ausente'],
       [AGUARDANDO, CANCELADA, GESTOR, 'Cliente desistiu'],
+      [DISPONIVEL, CANCELADA, GESTOR, 'Nenhum motorista disponível'],
       [EM_ANDAMENTO, CANCELADA, GESTOR, 'Veículo quebrou'],
     ])('%s → %s por %s', (de, para, perfil, motivo) => {
-      expect(erroDe(() => validarTransicao(de, para, perfil, motivo))).toBeNull();
+      expect(
+        erroDe(() => validarTransicao(de, para, perfil, motivo)),
+      ).toBeNull();
     });
   });
 
@@ -43,6 +47,11 @@ describe('máquina de estados da ordem de coleta (RF04)', () => {
       [FALHA, EM_ANDAMENTO],
       [FALHA, CANCELADA],
       [CANCELADA, AGUARDANDO],
+      // Uma coleta disponível só vira "aguardando" pela aceitação, que define o motorista.
+      [DISPONIVEL, AGUARDANDO],
+      [DISPONIVEL, EM_ANDAMENTO],
+      [DISPONIVEL, CONCLUIDA],
+      [AGUARDANDO, DISPONIVEL],
     ])('%s → %s é inválida', (de, para) => {
       for (const perfil of [GESTOR, MOTORISTA]) {
         expect(erroDe(() => validarTransicao(de, para, perfil, 'motivo'))).toBe(
@@ -53,6 +62,12 @@ describe('máquina de estados da ordem de coleta (RF04)', () => {
   });
 
   describe('permissões por perfil', () => {
+    it('somente o gestor cancela uma coleta disponível', () => {
+      expect(
+        erroDe(() => validarTransicao(DISPONIVEL, CANCELADA, MOTORISTA, 'x')),
+      ).toBe('NAO_PERMITIDA');
+    });
+
     it('somente o gestor pode cancelar', () => {
       expect(
         erroDe(() => validarTransicao(AGUARDANDO, CANCELADA, MOTORISTA, 'x')),
@@ -63,12 +78,12 @@ describe('máquina de estados da ordem de coleta (RF04)', () => {
     });
 
     it('o gestor não executa etapas de campo', () => {
-      expect(erroDe(() => validarTransicao(AGUARDANDO, EM_ANDAMENTO, GESTOR))).toBe(
-        'NAO_PERMITIDA',
-      );
-      expect(erroDe(() => validarTransicao(EM_ANDAMENTO, CONCLUIDA, GESTOR))).toBe(
-        'NAO_PERMITIDA',
-      );
+      expect(
+        erroDe(() => validarTransicao(AGUARDANDO, EM_ANDAMENTO, GESTOR)),
+      ).toBe('NAO_PERMITIDA');
+      expect(
+        erroDe(() => validarTransicao(EM_ANDAMENTO, CONCLUIDA, GESTOR)),
+      ).toBe('NAO_PERMITIDA');
     });
   });
 
@@ -76,6 +91,7 @@ describe('máquina de estados da ordem de coleta (RF04)', () => {
     it.each([
       [EM_ANDAMENTO, FALHA, MOTORISTA],
       [AGUARDANDO, CANCELADA, GESTOR],
+      [DISPONIVEL, CANCELADA, GESTOR],
     ])('%s → %s exige motivo', (de, para, perfil) => {
       for (const motivo of [undefined, null, '', '   ']) {
         expect(erroDe(() => validarTransicao(de, para, perfil, motivo))).toBe(
@@ -94,6 +110,9 @@ describe('máquina de estados da ordem de coleta (RF04)', () => {
       [CONCLUIDA, MOTORISTA, []],
       [FALHA, GESTOR, []],
       [CANCELADA, GESTOR, []],
+      [DISPONIVEL, GESTOR, [CANCELADA]],
+      // O motorista aceita pela rota própria, que define o motorista e o veículo.
+      [DISPONIVEL, MOTORISTA, []],
     ])('%s para %s', (status, perfil, esperado) => {
       expect(transicoesPermitidas(status, perfil)).toEqual(esperado);
     });

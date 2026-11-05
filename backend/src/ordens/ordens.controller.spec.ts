@@ -1,6 +1,10 @@
 import { CHAVE_PERFIS } from '../auth/decorators.js';
 import { Perfil } from '../usuarios/perfil.enum.js';
-import type { AlterarStatusDto, CriarOrdemDto } from './dto/ordem.dto.js';
+import type {
+  AceitarColetaDto,
+  AlterarStatusDto,
+  CriarOrdemDto,
+} from './dto/ordem.dto.js';
 import { OrdensController } from './ordens.controller.js';
 import type { OrdensService } from './ordens.service.js';
 import { StatusOrdem } from './status-ordem.enum.js';
@@ -16,6 +20,8 @@ describe('OrdensController', () => {
     resumo: vi.fn(),
     detalhar: vi.fn(),
     alterarStatus: vi.fn(),
+    disponiveis: vi.fn(),
+    aceitar: vi.fn(),
   };
   const controller = new OrdensController(service as unknown as OrdensService);
   const perfisDa = (rota: keyof OrdensController) =>
@@ -29,6 +35,8 @@ describe('OrdensController', () => {
     expect(perfisDa('listar')).toEqual([Perfil.GESTOR]);
     expect(perfisDa('resumo')).toEqual([Perfil.GESTOR]);
     expect(perfisDa('minhas')).toEqual([Perfil.MOTORISTA]);
+    expect(perfisDa('disponiveis')).toEqual([Perfil.MOTORISTA]);
+    expect(perfisDa('aceitar')).toEqual([Perfil.MOTORISTA]);
     // Detalhe e status ficam abertos aos dois; o service filtra pelo dono da ordem.
     expect(perfisDa('detalhar')).toBeUndefined();
     expect(perfisDa('alterarStatus')).toBeUndefined();
@@ -63,5 +71,15 @@ describe('OrdensController', () => {
     await controller.alterarStatus(10, dto, joao);
 
     expect(service.alterarStatus).toHaveBeenCalledWith(10, dto, joao);
+  });
+
+  it('lista as coletas disponíveis e aceita em nome do motorista autenticado', async () => {
+    const dto: AceitarColetaDto = { veiculoId: 4 };
+
+    await controller.disponiveis();
+    await controller.aceitar(10, dto, joao);
+
+    expect(service.disponiveis).toHaveBeenCalled();
+    expect(service.aceitar).toHaveBeenCalledWith(10, dto, joao);
   });
 });

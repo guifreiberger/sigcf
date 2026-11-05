@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { StatusOrdem } from '../status-ordem.enum.js';
 import {
+  AceitarColetaDto,
   AlterarStatusDto,
   CriarOrdemDto,
   FiltroOrdensDto,
@@ -31,16 +32,31 @@ describe('DTOs de ordem de coleta', () => {
       expect(campos((await validar(CriarOrdemDto, ordem)).erros)).toEqual([]);
     });
 
-    it('exige cliente, veículo, motorista e data', async () => {
+    it('exige cliente e data', async () => {
       const { erros } = await validar(CriarOrdemDto, {});
 
-      expect(campos(erros).sort()).toEqual([
-        'clienteId',
-        'dataColeta',
-        'motoristaId',
-        'veiculoId',
-      ]);
+      expect(campos(erros).sort()).toEqual(['clienteId', 'dataColeta']);
     });
+
+    it('aceita a coleta sem motorista nem veículo, para ser disponibilizada', async () => {
+      const { motoristaId: _m, veiculoId: _v, ...disponivel } = ordem;
+
+      expect(campos((await validar(CriarOrdemDto, disponivel)).erros)).toEqual(
+        [],
+      );
+    });
+
+    it.each([['motoristaId'], ['veiculoId']])(
+      'recusa %s que não é um id válido',
+      async (campo) => {
+        const { erros } = await validar(CriarOrdemDto, {
+          ...ordem,
+          [campo]: 0,
+        });
+
+        expect(campos(erros)).toEqual([campo]);
+      },
+    );
 
     it.each([
       ['zero', 0],
@@ -62,6 +78,17 @@ describe('DTOs de ordem de coleta', () => {
       });
 
       expect(campos(erros)).toEqual(['enderecoColeta']);
+    });
+  });
+
+  describe('AceitarColetaDto', () => {
+    it('exige o veículo escolhido pelo motorista', async () => {
+      expect(campos((await validar(AceitarColetaDto, {})).erros)).toEqual([
+        'veiculoId',
+      ]);
+      expect((await validar(AceitarColetaDto, { veiculoId: 4 })).erros).toEqual(
+        [],
+      );
     });
   });
 

@@ -23,6 +23,12 @@ describe('VeiculosController', () => {
     ]);
   });
 
+  it('deixa o motorista consultar a frota para escolher o veículo de uma coleta disponível', () => {
+    expect(
+      Reflect.getMetadata(CHAVE_PERFIS, VeiculosController.prototype.listar),
+    ).toEqual([Perfil.GESTOR, Perfil.MOTORISTA]);
+  });
+
   it('repassa o filtro de situação ao listar', async () => {
     await expect(controller.listar({ ativo: true })).resolves.toEqual([]);
     expect(service.listar).toHaveBeenCalledWith(true);

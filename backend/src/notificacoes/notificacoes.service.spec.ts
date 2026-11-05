@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { Repository } from 'typeorm';
+import { Perfil } from '../usuarios/perfil.enum.js';
 import type { Aviso } from './avisos.js';
 import type { EnviadorPush } from './enviador-push.js';
 import type { InscricaoPush } from './inscricao-push.entity.js';
@@ -32,6 +33,7 @@ describe('NotificacoesService', () => {
     upsert: vi.fn(),
     delete: vi.fn(),
     findBy: vi.fn(),
+    find: vi.fn(),
   };
   const enviador = {
     chavePublica: 'chave-vapid' as string | null,
@@ -120,6 +122,52 @@ describe('NotificacoesService', () => {
       expect(registro).toHaveBeenCalledWith(
         expect.stringContaining('banco fora do ar'),
       );
+      registro.mockRestore();
+    });
+  });
+
+  describe('enviarParaMotoristas', () => {
+    const daMaria = { ...notebook, id: 3, usuarioId: 8 };
+
+    it('não faz nada quando o push não está configurado', async () => {
+      enviador.chavePublica = null;
+
+      await service.enviarParaMotoristas(aviso);
+
+      expect(inscricoes.find).not.toHaveBeenCalled();
+    });
+
+    it('envia para os aparelhos de todos os motoristas ativos', async () => {
+      inscricoes.find.mockResolvedValue([celular, daMaria]);
+      enviador.enviar
+        .mockResolvedValueOnce('ENVIADO')
+        .mockResolvedValueOnce('EXPIRADO');
+
+      await service.enviarParaMotoristas(aviso);
+
+      expect(inscricoes.find).toHaveBeenCalledWith({
+        where: { usuario: { perfil: Perfil.MOTORISTA, ativo: true } },
+      });
+      expect(enviador.enviar).toHaveBeenCalledWith(
+        celular,
+        JSON.stringify(aviso),
+      );
+      expect(enviador.enviar).toHaveBeenCalledWith(
+        daMaria,
+        JSON.stringify(aviso),
+      );
+      expect(inscricoes.delete).toHaveBeenCalledWith({ id: 3 });
+    });
+
+    it('nunca rejeita', async () => {
+      const registro = vi
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+      inscricoes.find.mockRejectedValue(new Error('banco fora do ar'));
+
+      await expect(
+        service.enviarParaMotoristas(aviso),
+      ).resolves.toBeUndefined();
       registro.mockRestore();
     });
   });
