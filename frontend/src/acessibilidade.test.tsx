@@ -47,6 +47,16 @@ const coletasDoDia = [
   coleta({ id: 3, status: 'CONCLUIDA', transicoesPermitidas: [] }),
 ]
 
+const disponivel = coleta({
+  id: 4,
+  status: 'DISPONIVEL',
+  motoristaId: null,
+  veiculoId: null,
+  veiculo: null,
+  motorista: null,
+  transicoesPermitidas: [],
+})
+
 describe('acessibilidade (WCAG 2.1 AA)', () => {
   it('tela de login', async () => {
     renderizar(<Login />, { rota: '/login', caminho: '/login' })
@@ -80,11 +90,14 @@ describe('acessibilidade (WCAG 2.1 AA)', () => {
     expect(await violacoes()).toEqual([])
   })
 
-  it('coletas do motorista', async () => {
-    apiFalsa({ [`GET /ordens/minhas?data=${hoje}`]: { corpo: coletasDoDia } })
+  it('coletas do motorista, com coletas disponíveis para aceitar', async () => {
+    apiFalsa({
+      [`GET /ordens/minhas?data=${hoje}`]: { corpo: coletasDoDia },
+      'GET /ordens/disponiveis': { corpo: [disponivel] },
+    })
     renderizar(<MinhasColetas />, { sessao: sessaoDe('MOTORISTA') })
 
-    await screen.findAllByRole('heading', { level: 2 })
+    await screen.findByRole('heading', { name: 'Coletas disponíveis' })
     expect(await violacoes()).toEqual([])
   })
 
@@ -96,6 +109,21 @@ describe('acessibilidade (WCAG 2.1 AA)', () => {
     const dialogo = screen.getByRole('dialog', { name: 'Reportar falha' })
 
     expect(within(dialogo).getByLabelText('Motivo')).toBeInTheDocument()
+    expect(await violacoes(dialogo)).toEqual([])
+  })
+
+  it('diálogo de aceitar coleta disponível', async () => {
+    apiFalsa({
+      [`GET /ordens/minhas?data=${hoje}`]: { corpo: [] },
+      'GET /ordens/disponiveis': { corpo: [disponivel] },
+      'GET /veiculos?ativo=true': { corpo: [coleta({ id: 1 }).veiculo] },
+    })
+    renderizar(<MinhasColetas />, { sessao: sessaoDe('MOTORISTA') })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Aceitar coleta' }))
+    const dialogo = screen.getByRole('dialog', { name: 'Aceitar coleta' })
+
+    await within(dialogo).findByRole('option', { name: /ABC-1234/ })
     expect(await violacoes(dialogo)).toEqual([])
   })
 })

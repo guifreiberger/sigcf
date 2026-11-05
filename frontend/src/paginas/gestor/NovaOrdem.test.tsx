@@ -65,6 +65,25 @@ describe('NovaOrdem', () => {
     })
   })
 
+  it('disponibiliza a coleta para os motoristas, sem escolher motorista nem veículo', async () => {
+    const fetchFalso = apiFalsa({ ...cadastros, 'POST /ordens': { status: 201, corpo: { id: 43 } } })
+    abrir()
+
+    await screen.findByRole('option', { name: 'WEG' })
+    await userEvent.selectOptions(screen.getByLabelText('Cliente'), 'WEG')
+    await userEvent.click(screen.getByRole('radio', { name: /Disponibilizar para os motoristas/ }))
+
+    expect(screen.queryByLabelText('Motorista')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Veículo')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Publicar para os motoristas' }))
+
+    expect(await screen.findByRole('status', { name: 'Rota atual' })).toHaveTextContent('/gestor/ordens/43')
+    const corpo = corpoEnviado(fetchFalso, 'POST /ordens')
+    expect(corpo).toMatchObject({ clienteId: 3, enderecoColeta: 'Av. Prefeito Waldemar Grubba, 3300' })
+    expect(corpo).not.toHaveProperty('motoristaId')
+    expect(corpo).not.toHaveProperty('veiculoId')
+  })
+
   it('permite trocar o endereço sugerido', async () => {
     const fetchFalso = apiFalsa({ ...cadastros, 'POST /ordens': { status: 201, corpo: { id: 42 } } })
     abrir()

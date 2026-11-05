@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  diaRelativo,
   formatarData,
   formatarDataExtenso,
   formatarDataHora,
@@ -35,6 +36,13 @@ describe('formatos', () => {
     vi.setSystemTime(new Date(2026, 10, 4, 23, 30))
 
     expect(hojeLocal()).toBe('2026-11-04')
+  })
+
+  it('diaRelativo diz hoje, amanhã ou o dia e o mês, inclusive na virada do mês', () => {
+    expect(diaRelativo('2026-11-04', '2026-11-04')).toBe('Hoje')
+    expect(diaRelativo('2026-11-05', '2026-11-04')).toBe('Amanhã')
+    expect(diaRelativo('2026-12-01', '2026-11-30')).toBe('Amanhã')
+    expect(diaRelativo('2026-11-12', '2026-11-04')).toBe('12/11')
   })
 
   it('formatarData converte AAAA-MM-DD para o padrão brasileiro', () => {
