@@ -128,3 +128,24 @@ Como **gestor**, quero saber se o volume de cada cliente está crescendo ou cain
 - Dado pesos estimados que crescem de forma consistente, então o cliente aparece com tendência de alta, junto com a variação mensal.
 
 > Testes: `analise.spec.ts`, `inteligencia.service.spec.ts`, `api.e2e-spec.ts` (inteligência), `NovaOrdem.test.tsx`
+
+## Coleta disponível (RF12)
+
+Hoje, quando o gestor não sabe quem está livre, ele manda a coleta no grupo dos motoristas e espera alguém responder. As duas histórias abaixo trazem esse costume para o sistema, sem o risco de dois motoristas irem ao mesmo cliente.
+
+**US16 — Oferecer a coleta para quem estiver livre**
+Como **gestor**, quero publicar uma coleta sem escolher o motorista, para que quem estiver livre a pegue, como faço hoje no grupo do WhatsApp.
+
+- Dado que escolho "Disponibilizar para os motoristas", quando salvo, então a ordem fica disponível, sem motorista e sem veículo, e todos os motoristas ativos recebem o aviso "Coleta disponível: quem pega?".
+- Dado que informo só o motorista ou só o veículo, quando salvo, então o sistema recusa.
+- Dado uma coleta que ninguém aceitou, quando eu a cancelo com motivo, então ela some da lista dos motoristas.
+
+**US17 — Pegar uma coleta disponível**
+Como **motorista**, quero ver as coletas disponíveis e aceitar uma, escolhendo o veículo, para assumir o serviço pelo celular.
+
+- Dado coletas disponíveis de hoje em diante, quando abro o app, então vejo cada uma com o cliente, o endereço, o dia e o peso estimado.
+- Dado que aceito com um veículo ativo, então a coleta passa a ser minha, com o status aguardando, e o histórico registra que fui eu que aceitei.
+- Dado que outro motorista aceitou antes, quando confirmo, então o app avisa que a coleta já foi aceita e não deixa tentar de novo.
+- Dado que dois motoristas aceitam no mesmo instante, então só um fica com a coleta.
+
+> Testes: `api.e2e-spec.ts` (RF12, incluindo dois motoristas aceitando ao mesmo tempo), `ordens.service.spec.ts`, `transicoes.spec.ts`, `notificacoes.service.spec.ts`, `frontend/src/paginas/motorista/ColetasDisponiveis.test.tsx`, `NovaOrdem.test.tsx`
