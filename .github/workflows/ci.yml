@@ -175,6 +175,8 @@ jobs:
           TF_VAR_vapid_chave_publica: ${{ vars.VAPID_PUBLIC_KEY }}
           TF_VAR_vapid_chave_privada: ${{ secrets.VAPID_PRIVATE_KEY }}
           TF_VAR_vapid_contato: ${{ vars.VAPID_CONTATO }}
+          # Ligue (true) perto das avaliações; desligada, a produção dorme sem acessos.
+          TF_VAR_producao_sempre_ligada: ${{ vars.PRODUCAO_SEMPRE_LIGADA == 'true' }}
         run: |
           terraform init -input=false \
             -backend-config="resource_group_name=rg-sigcf-estado" \

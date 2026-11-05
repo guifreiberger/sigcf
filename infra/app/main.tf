@@ -14,8 +14,10 @@ data "terraform_remote_state" "base" {
 locals {
   base     = data.terraform_remote_state.base.outputs
   producao = var.ambiente == "producao"
-  nome     = local.producao ? "sigcf" : "sigcf-homologacao"
-  push     = var.vapid_chave_publica != "" && var.vapid_chave_privada != ""
+  # Sempre ligada só quando pedido (perto das avaliações); fora disso, a produção dorme como a homologação.
+  sempre_ligada = local.producao && var.producao_sempre_ligada
+  nome          = local.producao ? "sigcf" : "sigcf-homologacao"
+  push          = var.vapid_chave_publica != "" && var.vapid_chave_privada != ""
 }
 
 resource "random_password" "jwt" {
@@ -68,8 +70,8 @@ resource "azurerm_container_app" "sigcf" {
   }
 
   template {
-    # A produção fica sempre ligada; a homologação desliga sem acessos e acorda no primeiro.
-    min_replicas = local.producao ? 1 : 0
+    # Sem acessos, o app desliga e acorda na primeira requisição (20 a 30 s); sempre ligada, não espera.
+    min_replicas = local.sempre_ligada ? 1 : 0
     max_replicas = local.producao ? 2 : 1
 
     # O nginx recebe as requisições e encaminha /api para a API no mesmo app (localhost).
@@ -175,20 +177,21 @@ resource "azurerm_container_app" "sigcf" {
 }
 
 # --- Monitoramento da produção ----------------------------------------------
-# Só na produção: na homologação o teste manteria o app sempre acordado (e cobrando).
+# Só com a produção sempre ligada: com ela dormindo, o teste a manteria acordada (e cobrando).
+# Cada execução do teste é cobrada, por isso 2 regiões a cada 15 minutos.
 
 resource "azurerm_application_insights_standard_web_test" "disponibilidade" {
-  count = local.producao ? 1 : 0
+  count = local.sempre_ligada ? 1 : 0
 
   name                    = "sigcf-producao-disponibilidade"
   resource_group_name     = local.base.grupo_de_recursos
   location                = local.base.regiao
   application_insights_id = local.base.application_insights_id
-  description             = "Consulta o health check (que inclui o banco) a cada 5 minutos, de três regiões."
-  frequency               = 300
+  description             = "Consulta o health check (que inclui o banco) a cada 15 minutos, de duas regiões."
+  frequency               = 900
   timeout                 = 30
   enabled                 = true
-  geo_locations           = ["latam-br-gru-edge", "us-va-ash-azr", "us-fl-mia-edge"]
+  geo_locations           = ["latam-br-gru-edge", "us-va-ash-azr"]
 
   request {
     url       = "https://${azurerm_container_app.sigcf.ingress[0].fqdn}/api/health"
@@ -208,12 +211,12 @@ resource "azurerm_application_insights_standard_web_test" "disponibilidade" {
 }
 
 resource "azurerm_monitor_metric_alert" "fora_do_ar" {
-  count = local.producao ? 1 : 0
+  count = local.sempre_ligada ? 1 : 0
 
   name                = "sigcf-producao-fora-do-ar"
   resource_group_name = local.base.grupo_de_recursos
   scopes              = [azurerm_application_insights_standard_web_test.disponibilidade[0].id, local.base.application_insights_id]
-  description         = "A produção não respondeu ao health check em duas das três regiões."
+  description         = "A produção não respondeu ao health check nas duas regiões do teste."
   severity            = 1
 
   application_insights_web_test_location_availability_criteria {

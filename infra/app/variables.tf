@@ -40,3 +40,9 @@ variable "vapid_contato" {
   type        = string
   default     = ""
 }
+
+variable "producao_sempre_ligada" {
+  description = "Mantém a produção com uma réplica sempre ativa e o teste de disponibilidade ligado. Desligada, ela dorme sem acessos e acorda no primeiro, para economizar crédito fora dos períodos de avaliação."
+  type        = bool
+  default     = false
+}
