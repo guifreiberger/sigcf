@@ -25,7 +25,7 @@ export function AvisosColetas() {
     if (!('serviceWorker' in navigator)) return
     const aoReceber = (evento: MessageEvent) => {
       if (evento.data?.tipo === 'sigcf:atualizar') {
-        queryClient.invalidateQueries({ queryKey: ['minhas'] })
+        for (const chave of ['minhas', 'disponiveis']) queryClient.invalidateQueries({ queryKey: [chave] })
       }
     }
     navigator.serviceWorker.addEventListener('message', aoReceber)

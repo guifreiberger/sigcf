@@ -88,6 +88,28 @@ export function useMinhasColetas(data: string) {
   })
 }
 
+export function useColetasDisponiveis() {
+  return useQuery({
+    queryKey: ['disponiveis'],
+    queryFn: () => api<Ordem[]>('/ordens/disponiveis'),
+    refetchInterval: 30_000,
+  })
+}
+
+export function useAceitarColeta() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, veiculoId }: { id: number; veiculoId: number }) =>
+      api<Ordem>(`/ordens/${id}/aceitar`, { metodo: 'POST', corpo: { veiculoId } }),
+    // Também quando outro motorista aceitou antes: a lista precisa refletir isso.
+    onSettled: () => {
+      for (const chave of ['disponiveis', 'minhas']) {
+        queryClient.invalidateQueries({ queryKey: [chave] })
+      }
+    },
+  })
+}
+
 export function useCriarOrdem() {
   const queryClient = useQueryClient()
   return useMutation({

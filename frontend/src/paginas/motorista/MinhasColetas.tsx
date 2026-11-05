@@ -34,6 +34,7 @@ import {
 } from '../../util/formatos.ts'
 import { localizacaoBloqueada, obterLocalizacao } from '../../util/localizacao.ts'
 import { AvisosColetas } from './AvisosColetas.tsx'
+import { ColetasDisponiveis } from './ColetasDisponiveis.tsx'
 import { type EstadoRastreamento, useRastreamento } from './useRastreamento.ts'
 
 const PRIORIDADE: Record<StatusOrdem, number> = {
@@ -160,6 +161,7 @@ export function MinhasColetas() {
 
         <Compartilhamento estado={rastreamento.estado} pendentes={rastreamento.pendentes} />
         <AvisosColetas />
+        <ColetasDisponiveis />
 
         <MensagemErro erro={coletas.error} />
         {!acao && <MensagemErro erro={alterar.error} />}
