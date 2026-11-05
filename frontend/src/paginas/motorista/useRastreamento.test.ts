@@ -12,12 +12,25 @@ function gpsFalso() {
   const gps = {
     aoLer: null as PositionCallback | null,
     aoFalhar: null as PositionErrorCallback | null,
+    aoLerAvulsa: null as PositionCallback | null,
     watchPosition: vi.fn((aoLer: PositionCallback, aoFalhar: PositionErrorCallback, _opcoes?: PositionOptions) => {
       gps.aoLer = aoLer
       gps.aoFalhar = aoFalhar
       return 42
     }),
     clearWatch: vi.fn(),
+    getCurrentPosition: vi.fn((aoLer: PositionCallback, _aoFalhar?: PositionErrorCallback, _opcoes?: PositionOptions) => {
+      gps.aoLerAvulsa = aoLer
+    }),
+    // Resposta do pedido avulso de posição, que continua funcionando quando o acompanhamento para.
+    lerAvulsa(latitude: number, segundos: number) {
+      act(() =>
+        gps.aoLerAvulsa?.({
+          coords: { latitude, longitude: -49.0713456, accuracy: 6 },
+          timestamp: INICIO + segundos * 1000,
+        } as GeolocationPosition),
+      )
+    },
     ler(latitude: number, segundos: number, accuracy = 7.6) {
       act(() =>
         gps.aoLer?.({
@@ -185,6 +198,75 @@ describe('useRastreamento', () => {
     const { result } = renderHook(() => useRastreamento(true))
 
     expect(result.current.estado).toBe('aguardando-gps')
+  })
+
+  describe('quando o celular para de entregar as leituras sem avisar', () => {
+    // Visto num Android real: depois de a tela apagar ou o app sair da frente, o acompanhamento
+    // contínuo parou para sempre, enquanto o pedido avulso de posição seguia funcionando.
+    function voltarParaOApp() {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+      act(() => document.dispatchEvent(new Event('visibilitychange')))
+    }
+
+    afterEach(() => Reflect.deleteProperty(document, 'visibilityState'))
+
+    it('não pede posição avulsa enquanto as leituras continuam chegando', async () => {
+      servidorQueResponde(204)
+      renderHook(() => useRastreamento(true))
+
+      for (let segundos = 0; segundos <= 40; segundos += 10) {
+        vi.setSystemTime(INICIO + segundos * 1000)
+        gps.ler(-26.4851 + segundos / 100_000, segundos)
+        await act(() => vi.advanceTimersByTimeAsync(0))
+      }
+      await act(() => vi.advanceTimersByTimeAsync(10_000))
+
+      expect(gps.getCurrentPosition).not.toHaveBeenCalled()
+    })
+
+    it('pede uma posição avulsa e guarda a leitura, para o trajeto não ficar vazio', async () => {
+      servidorQueResponde(409)
+      const { result } = renderHook(() => useRastreamento(true))
+      gps.ler(-26.4851, 0)
+
+      await act(() => vi.advanceTimersByTimeAsync(20_000))
+
+      expect(gps.getCurrentPosition).toHaveBeenCalledTimes(1)
+      expect(gps.getCurrentPosition.mock.calls[0][2]).toMatchObject({ enableHighAccuracy: true })
+      gps.lerAvulsa(-26.4849, 20)
+      expect(result.current).toMatchObject({ estado: 'compartilhando', pendentes: 1 })
+    })
+
+    it('reinicia o acompanhamento contínuo, que pode ter morrido', async () => {
+      servidorQueResponde(204)
+      renderHook(() => useRastreamento(true))
+
+      await act(() => vi.advanceTimersByTimeAsync(20_000))
+
+      expect(gps.clearWatch).toHaveBeenCalledWith(42)
+      expect(gps.watchPosition).toHaveBeenCalledTimes(2)
+    })
+
+    it('deixa de dizer que está compartilhando quando não chega nenhuma posição', async () => {
+      servidorQueResponde(204)
+      const { result } = renderHook(() => useRastreamento(true))
+      gps.ler(-26.4851, 0)
+      expect(result.current.estado).toBe('compartilhando')
+
+      await act(() => vi.advanceTimersByTimeAsync(30_000))
+
+      expect(result.current.estado).toBe('aguardando-gps')
+    })
+
+    it('reinicia o acompanhamento e pede a posição assim que o motorista volta para o app', () => {
+      renderHook(() => useRastreamento(true))
+
+      voltarParaOApp()
+
+      expect(gps.clearWatch).toHaveBeenCalledWith(42)
+      expect(gps.watchPosition).toHaveBeenCalledTimes(2)
+      expect(gps.getCurrentPosition).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('informa quando o aparelho não tem GPS', () => {
