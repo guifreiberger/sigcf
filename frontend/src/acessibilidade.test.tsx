@@ -4,12 +4,15 @@ import axe from 'axe-core'
 import { describe, expect, it } from 'vitest'
 import type { Ordem } from './api/tipos.ts'
 import { Login } from './paginas/Login.tsx'
+import { Dashboard } from './paginas/gestor/Dashboard.tsx'
 import { NovaOrdem } from './paginas/gestor/NovaOrdem.tsx'
 import { Painel } from './paginas/gestor/Painel.tsx'
+import { Relatorios } from './paginas/gestor/Relatorios.tsx'
 import { MinhasColetas } from './paginas/motorista/MinhasColetas.tsx'
 import { apiFalsa } from './testes/apiFalsa.ts'
 import { renderizar, sessaoDe } from './testes/renderizar.tsx'
 import { hojeLocal } from './util/formatos.ts'
+import { periodoPredefinido } from './util/periodos.ts'
 
 // Critérios da WCAG 2.1 (níveis A e AA) verificados pelo axe. O contraste de cores depende do
 // layout renderizado, que o jsdom não tem: ele é auditado no navegador (ver docs/acessibilidade.md).
@@ -90,6 +93,36 @@ describe('acessibilidade (WCAG 2.1 AA)', () => {
     renderizar(<NovaOrdem />, { sessao: sessaoDe('GESTOR') })
 
     await screen.findByRole('option', { name: 'WEG' })
+    expect(await violacoes()).toEqual([])
+  })
+
+  it('dashboard do gestor', async () => {
+    const { de, ate } = periodoPredefinido('30dias', hoje)
+    apiFalsa({
+      [`GET /relatorios/dashboard?de=${de}&ate=${ate}`]: {
+        corpo: {
+          de,
+          ate,
+          agrupamento: 'dia',
+          totais: { coletas: 2, concluidas: 1, falhas: 0, canceladas: 0, pesoKg: 800, semPesagem: 0, distanciaMetros: 5000, duracaoMediaSegundos: 1800 },
+          pesoPorPeriodo: [{ periodo: hoje, pesoKg: 800, coletas: 1 }],
+          clientes: [{ clienteId: 3, cliente: 'WEG', coletas: 2, pesoKg: 800 }],
+          motoristas: [{ motoristaId: 7, motorista: 'João', coletas: 1, falhas: 0, distanciaMetros: 5000, pesoKg: 800, duracaoMediaSegundos: 1800 }],
+        },
+      },
+      'GET /inteligencia/clientes': { corpo: { hoje, janelaDias: 365, alertas: [], clientes: [] } },
+    })
+    renderizar(<Dashboard />, { sessao: sessaoDe('GESTOR') })
+
+    await screen.findByRole('region', { name: 'Indicadores do período' })
+    expect(await violacoes()).toEqual([])
+  })
+
+  it('relatórios', async () => {
+    apiFalsa({ 'GET /motoristas': { corpo: [] }, 'GET /clientes': { corpo: [] } })
+    renderizar(<Relatorios />, { sessao: sessaoDe('GESTOR') })
+
+    await screen.findByRole('button', { name: 'Baixar planilha' })
     expect(await violacoes()).toEqual([])
   })
 
