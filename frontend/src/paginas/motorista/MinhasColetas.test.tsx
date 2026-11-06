@@ -15,6 +15,7 @@ const app = vi.hoisted(() => ({
   abrirConfiguracoes: vi.fn(),
 }))
 vi.mock('../../nativo/plataforma.ts', () => ({ ehAppNativo: () => app.nativo }))
+vi.mock('../../nativo/avisosNoApp.ts', () => ({ ativarAvisosNoApp: async () => 'ativo' }))
 vi.mock('../../nativo/gpsEmSegundoPlano.ts', () => ({
   acompanharEmSegundoPlano: (_aoLer: unknown, aoFalhar: typeof app.aoFalhar) => {
     app.aoFalhar = aoFalhar
