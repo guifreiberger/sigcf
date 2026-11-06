@@ -9,6 +9,7 @@ erDiagram
     ORDEM_COLETA ||--o{ HISTORICO_STATUS : "registra"
     USUARIO ||--o{ HISTORICO_STATUS : "efetua"
     USUARIO ||--o{ INSCRICAO_PUSH : "recebe avisos em"
+    USUARIO ||--o{ APARELHO_APP : "usa o app em"
     ORDEM_COLETA ||--o{ PONTO_TRAJETO : "percorre"
 
     USUARIO {
@@ -81,6 +82,13 @@ erDiagram
         datetime created_at
     }
 
+    APARELHO_APP {
+        int id PK
+        int usuario_id FK
+        varchar token UK "token do Firebase"
+        datetime created_at
+    }
+
     PONTO_TRAJETO {
         int id PK
         int ordem_id FK
@@ -109,6 +117,8 @@ erDiagram
 **Pontos do trajeto (RF11).** Enquanto a coleta está em andamento, o celular do motorista envia leituras do GPS, gravadas em `ponto_trajeto` com o horário em que foram feitas no aparelho (`registrado_em`, com milissegundos), e não o do envio, para que lotes atrasados por falta de sinal entrem na ordem certa. Fora de uma coleta em andamento, o servidor recusa os pontos, pelo princípio da necessidade da LGPD. A duração e a distância da corrida não são colunas da ordem: são calculadas a partir do histórico de status e dos pontos, evitando dados duplicados que poderiam divergir. O índice `(ordem_id, registrado_em)` atende às duas consultas do recurso: o trajeto de uma ordem em ordem cronológica e a última posição de cada coleta em andamento. A exclusão de uma ordem apaga seus pontos (`ON DELETE CASCADE`). Detalhes em [`rastreamento.md`](rastreamento.md).
 
 **Inscrições de notificação.** Cada aparelho que ativa os avisos gera um endereço único no serviço de push do navegador (`endpoint`) e as chaves públicas usadas para criptografar a mensagem (`p256dh` e `auth`). Um usuário pode ter vários aparelhos, mas cada endereço pertence a um único usuário. A exclusão do usuário apaga suas inscrições (`ON DELETE CASCADE`).
+
+**Aparelhos do app Android.** No app, os avisos vão pelo Firebase, que identifica cada aparelho por um token. A tabela `aparelho_app` é separada de `inscricao_push` porque os dois canais guardam dados diferentes: o token não tem chaves de criptografia. As regras são as mesmas: um token pertence a um único usuário, passa para quem entrar depois no mesmo aparelho e é apagado junto com o usuário.
 
 **Motorista e veículo opcionais na ordem (RF12).** Uma coleta disponível ainda não tem motorista nem veículo: os dois são definidos juntos, por quem a aceita. Por isso `motorista_id` e `veiculo_id` aceitam nulo, e a regra de que ou os dois estão preenchidos ou nenhum está fica na camada de serviço. Uma coleta só entra em andamento depois de aceita, então o rastreamento (RF11) sempre encontra motorista e veículo.
 

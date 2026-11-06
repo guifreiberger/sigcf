@@ -18,14 +18,14 @@ As user stories e os critérios de aceite de cada requisito estão em [`user-sto
 | RF08 | Peso estimado | O atendente registra, ao criar a ordem, o peso estimado informado pelo cliente |
 | RF09 | Inteligência para o gestor | Identificar o padrão de recorrência de cada cliente, prever a próxima coleta, acompanhar o peso médio e a tendência de peso e alertar coletas esperadas ainda não pedidas, sem APIs externas de IA |
 | RF10 | Aviso no celular | Notificar o motorista, mesmo com o app fechado, quando receber uma coleta, tiver uma cancelada ou houver uma coleta disponível para aceitar |
-| RF11 | Trajeto da coleta | Enquanto a coleta está em andamento, o gestor acompanha a posição do motorista; ao final, ficam salvos o trajeto, a distância e a duração da corrida |
+| RF11 | Trajeto da coleta | Enquanto a coleta está em andamento, o gestor acompanha a posição do motorista; ao final, ficam salvos o trajeto, a distância e a duração da corrida. No app Android, o trajeto segue com a tela apagada ou com o motorista em outros apps |
 | RF12 | Coleta disponível | O gestor publica a coleta sem motorista; todos os motoristas são avisados e o primeiro que aceitar fica com ela, escolhendo o veículo. Se dois aceitarem ao mesmo tempo, só um consegue |
 
 ## Requisitos não funcionais
 
 | ID | Requisito | Como é atendido |
 |---|---|---|
-| RNF01 | Interface web responsiva | SPA em React, *mobile-first* na tela do motorista, instalável como PWA |
+| RNF01 | Interface web responsiva | SPA em React, *mobile-first* na tela do motorista, instalável como PWA; no Android, o mesmo frontend também é distribuído como app (Capacitor), para o trajeto continuar com a tela apagada ([ADR 0009](adr/0009-app-android-com-capacitor.md)) |
 | RNF02 | API em camadas | NestJS com Controller, Service e Repository (TypeORM) |
 | RNF03 | Banco relacional | MySQL 8 com InnoDB; mudança de status e histórico gravados na mesma transação |
 | RNF04 | Autenticação e autorização | JWT *stateless* com perfis gestor e motorista |

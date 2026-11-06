@@ -106,9 +106,31 @@ As variáveis abaixo são definidas pelo Terraform em cada ambiente; os valores 
 | `DB_SSL` | `true`: o MySQL do Azure só aceita conexões com TLS |
 | `JWT_SECRET` | Secret aleatório de 64 caracteres, um por ambiente |
 | `VAPID_*` | Chaves das notificações push |
+| `FIREBASE_CREDENCIAIS_BASE64` | Secret com a chave da conta de serviço do Firebase, em base64, para os avisos no app Android (vem do segredo `FIREBASE_CREDENCIAIS_BASE64` do GitHub) |
 | `API_UPSTREAM` | `http://localhost:3000` (nginx → API no mesmo app) |
 
 As migrations rodam automaticamente quando a API sobe.
+
+## App Android
+
+O app do motorista é o mesmo frontend empacotado com o Capacitor ([ADR 0009](adr/0009-app-android-com-capacitor.md)). Há dois apps, que podem ficar instalados juntos: **SIGCF Homologação** (`io.github.guifreiberger.sigcf.homologacao`) e **SIGCF** (`io.github.guifreiberger.sigcf`). O endereço da API de cada um está em `frontend/.env.app-homologacao` e `frontend/.env.app-producao`.
+
+**Pré-requisitos:** Java 21 e o Android SDK (os dois vêm com o Android Studio) e o arquivo `google-services.json` do projeto no Firebase em `frontend/android/app/`, fora do Git.
+
+**Gerar o APK de homologação:**
+
+```bash
+cd frontend
+npm run build:app:homologacao
+cd android
+./gradlew assembleHomologacaoDebug
+```
+
+O arquivo sai em `frontend/android/app/build/outputs/apk/homologacao/debug/`. Para a produção, use `npm run build:app:producao` e `./gradlew assembleProducaoRelease`. A versão de release é assinada quando as variáveis `ANDROID_KEYSTORE`, `ANDROID_KEYSTORE_SENHA`, `ANDROID_CHAVE_ALIAS` e `ANDROID_CHAVE_SENHA` apontam para a chave do app, que nunca vai para o repositório.
+
+**Se o Gradle não iniciar no Windows:** se `JAVA_HOME` apontar para uma instalação antiga do Java, use o Java do Android Studio (`JAVA_HOME="C:/Program Files/Android/Android Studio/jbr"`). Se o erro for "Unable to establish loopback connection", aponte a pasta dos sockets internos do Java para um caminho curto: `JAVA_TOOL_OPTIONS="-Djdk.net.unixdomain.tmpdir=C:/Users/Public/sigcf-tmp"`.
+
+**Instalar no celular:** envie o APK ao aparelho (WhatsApp, Drive ou cabo USB), toque no arquivo e permita a instalação daquela fonte. O Play Protect pode avisar que o app não veio da loja; confirme em "Instalar mesmo assim".
 
 ## Tarefas de operação
 

@@ -74,10 +74,14 @@ A resposta traz `alertas` (ordenados do mais atrasado para o mais próximo) e `c
 | GET | `/notificacoes/chave-publica` | qualquer | Chave pública VAPID usada pelo navegador para criar a inscrição (`null` se as chaves não estiverem configuradas) |
 | POST | `/notificacoes/inscricoes` | qualquer | Registra o aparelho do usuário: `{ endpoint, keys: { p256dh, auth } }`, no formato de `PushSubscription.toJSON()`. Responde 204 |
 | DELETE | `/notificacoes/inscricoes` | qualquer | Remove a inscrição do aparelho: `{ endpoint }`. Responde 204 |
+| POST | `/notificacoes/aparelhos` | qualquer | App Android: registra o aparelho com o token do Firebase, `{ token }`. Responde 204 |
+| DELETE | `/notificacoes/aparelhos` | qualquer | App Android: remove o aparelho do usuário, `{ token }`. Responde 204 |
 
 Só são aceitos endpoints HTTPS dos serviços de push dos navegadores (Google, Mozilla, Apple e Microsoft), o que impede o servidor de ser usado para enviar requisições a endereços arbitrários. Se o mesmo aparelho for inscrito por outro usuário, a inscrição passa a pertencer a ele.
 
 O motorista recebe um aviso quando uma coleta é atribuída a ele e quando uma coleta dele é cancelada. O envio ocorre em segundo plano e não interfere na resposta da API. Inscrições que o serviço de push informa como expiradas (HTTP 404 ou 410) são apagadas automaticamente.
+
+No app Android, os avisos vão pelo Firebase Cloud Messaging, com o mesmo conteúdo e a mesma regra de substituição por coleta. O token aceita só letras, números, hífen, sublinhado e dois-pontos. Ao sair da conta, o app apaga o token no Firebase, e o servidor descarta o aparelho quando o Firebase o informa como não registrado (`UNREGISTERED`). Sem a chave do Firebase configurada, os avisos no app ficam desligados e o restante funciona normalmente.
 
 ## Códigos de erro
 
