@@ -73,9 +73,14 @@ export function periodoDaCorrida(historico: PassoDoHistorico[]) {
   const inicio =
     historico.find((h) => h.statusNovo === StatusOrdem.EM_ANDAMENTO)
       ?.createdAt ?? null;
+  // Uma edição durante a coleta fica no histórico de EM_ANDAMENTO para EM_ANDAMENTO
+  // e não encerra a corrida.
   const fim =
-    historico.find((h) => h.statusAnterior === StatusOrdem.EM_ANDAMENTO)
-      ?.createdAt ?? null;
+    historico.find(
+      (h) =>
+        h.statusAnterior === StatusOrdem.EM_ANDAMENTO &&
+        h.statusNovo !== StatusOrdem.EM_ANDAMENTO,
+    )?.createdAt ?? null;
   return { inicio, fim };
 }
 
