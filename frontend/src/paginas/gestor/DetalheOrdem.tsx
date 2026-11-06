@@ -1,7 +1,20 @@
-import { Ban, Building2, ChevronLeft, Info, MapPin, MapPinOff, Truck, UserRound, Weight } from 'lucide-react'
-import { useState } from 'react'
+import {
+  Ban,
+  Building2,
+  ChevronLeft,
+  Info,
+  MapPin,
+  MapPinOff,
+  Pencil,
+  Scale,
+  Truck,
+  UserRound,
+  Weight,
+} from 'lucide-react'
+import { type FormEvent, useId, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { useAlterarStatus, useOrdem } from '../../api/consultas.ts'
+import { useAlterarStatus, useOrdem, useRegistrarPeso } from '../../api/consultas.ts'
+import type { Historico, Ordem, StatusOrdem } from '../../api/tipos.ts'
 import { DialogoMotivo } from '../../componentes/DialogoMotivo.tsx'
 import { Carregando, MensagemErro } from '../../componentes/Estados.tsx'
 import { IconeStatus } from '../../componentes/IconeStatus.tsx'
@@ -16,6 +29,14 @@ import {
   ROTULO_STATUS,
 } from '../../util/formatos.ts'
 import { TrajetoDaOrdem } from './TrajetoDaOrdem.tsx'
+
+const EDITAVEIS: StatusOrdem[] = ['DISPONIVEL', 'AGUARDANDO', 'EM_ANDAMENTO']
+
+// Uma linha do histórico sem mudança de status é uma edição da ordem ou o registro do peso.
+function tituloDoPasso(h: Historico) {
+  if (h.statusAnterior !== h.statusNovo) return ROTULO_STATUS[h.statusNovo]
+  return h.motivo?.startsWith('Peso da balança') ? 'Peso registrado' : 'Ordem editada'
+}
 
 function Voltar() {
   return (
@@ -57,12 +78,20 @@ export function DetalheOrdem() {
             Coleta em {formatarData(o.dataColeta)} · criada por {o.criadoPor?.nome} em {formatarDataHora(o.createdAt)}
           </p>
         </div>
-        {podeCancelar && (
-          <button type="button" className="botao botao--perigo-contorno" onClick={() => setCancelando(true)}>
-            <Ban size={18} aria-hidden />
-            Cancelar ordem
-          </button>
-        )}
+        <div className="pagina__acoes">
+          {EDITAVEIS.includes(o.status) && (
+            <Link to={`/gestor/ordens/${o.id}/editar`} className="botao botao--secundario">
+              <Pencil size={18} aria-hidden />
+              Editar
+            </Link>
+          )}
+          {podeCancelar && (
+            <button type="button" className="botao botao--perigo-contorno" onClick={() => setCancelando(true)}>
+              <Ban size={18} aria-hidden />
+              Cancelar ordem
+            </button>
+          )}
+        </div>
       </header>
 
       <TrajetoDaOrdem ordem={o} />
@@ -89,6 +118,17 @@ export function DetalheOrdem() {
               Peso estimado
             </dt>
             <dd>{o.pesoEstimadoKg != null ? formatarKg(o.pesoEstimadoKg) : 'Não informado'}</dd>
+            {o.status === 'CONCLUIDA' && (
+              <>
+                <dt>
+                  <Scale size={16} aria-hidden />
+                  Peso da balança
+                </dt>
+                <dd>
+                  <PesoDaBalanca ordem={o} />
+                </dd>
+              </>
+            )}
             <dt>
               <UserRound size={16} aria-hidden />
               Motorista
@@ -142,13 +182,18 @@ export function DetalheOrdem() {
                   <IconeStatus status={h.statusNovo} size={16} />
                 </span>
                 <div className="linha-tempo__topo">
-                  <strong>{ROTULO_STATUS[h.statusNovo]}</strong>
+                  <strong>{tituloDoPasso(h)}</strong>
                   <time dateTime={h.createdAt}>{formatarDataHora(h.createdAt)}</time>
                 </div>
                 <span className="texto-suave">
                   {h.statusAnterior ? 'Alterado' : 'Criada'} por {h.usuario.nome}
                 </span>
-                {h.motivo && <p className="linha-tempo__motivo">“{h.motivo}”</p>}
+                {h.motivo &&
+                  (h.statusAnterior === h.statusNovo ? (
+                    <p className="linha-tempo__motivo linha-tempo__motivo--edicao">{h.motivo}</p>
+                  ) : (
+                    <p className="linha-tempo__motivo">“{h.motivo}”</p>
+                  ))}
                 {h.latitude != null && h.longitude != null ? (
                   <a
                     className="linha-tempo__local"
@@ -191,5 +236,67 @@ export function DetalheOrdem() {
         }
       />
     </>
+  )
+}
+
+// O peso só é conhecido na balança, depois da coleta: o gestor registra ou corrige aqui (RF08).
+function PesoDaBalanca({ ordem }: { ordem: Ordem }) {
+  const registrar = useRegistrarPeso()
+  const idCampo = useId()
+  const [corrigindo, setCorrigindo] = useState(false)
+  const [peso, setPeso] = useState('')
+
+  if (ordem.pesoRealKg != null && !corrigindo) {
+    return (
+      <span className="peso-balanca">
+        {formatarKg(ordem.pesoRealKg)}
+        <button
+          type="button"
+          className="botao botao--fantasma botao--pequeno"
+          onClick={() => {
+            setPeso(String(ordem.pesoRealKg))
+            setCorrigindo(true)
+          }}
+        >
+          Corrigir
+        </button>
+      </span>
+    )
+  }
+
+  function enviar(evento: FormEvent) {
+    evento.preventDefault()
+    registrar.mutate(
+      { id: ordem.id, pesoRealKg: Number(peso) },
+      {
+        onSuccess: () => {
+          setCorrigindo(false)
+          setPeso('')
+        },
+      },
+    )
+  }
+
+  return (
+    <form className="peso-balanca peso-balanca--formulario" onSubmit={enviar}>
+      {ordem.pesoRealKg == null && <span className="texto-suave">Aguardando pesagem</span>}
+      <label className="campo campo--inline" htmlFor={idCampo}>
+        <span>Peso da balança (kg)</span>
+        <input
+          id={idCampo}
+          type="number"
+          inputMode="decimal"
+          min={0.01}
+          step={0.01}
+          required
+          value={peso}
+          onChange={(e) => setPeso(e.target.value)}
+        />
+      </label>
+      <button type="submit" className="botao botao--primario botao--pequeno" disabled={registrar.isPending}>
+        {registrar.isPending ? 'Salvando…' : 'Registrar peso'}
+      </button>
+      <MensagemErro erro={registrar.error} />
+    </form>
   )
 }
