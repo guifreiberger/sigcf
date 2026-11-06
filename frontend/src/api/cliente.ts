@@ -46,7 +46,7 @@ interface Resposta {
 
 // No navegador a API fica no mesmo endereço do site; o app Android traz o endereço completo
 // da API do seu ambiente (homologação ou produção), definido ao gerar o app.
-const enderecoDaApi = () => import.meta.env.VITE_API_URL || '/api'
+export const enderecoDaApi = () => import.meta.env.VITE_API_URL || '/api'
 
 // Sem tempo-limite, o HTTP nativo do Android espera para sempre por uma conexão que caiu, como
 // ao trocar do Wi-Fi para o 4G, e a fila do trajeto deixa de ser enviada até o app ser fechado.

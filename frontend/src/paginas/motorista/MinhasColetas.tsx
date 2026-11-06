@@ -33,7 +33,7 @@ import {
   iniciais,
   linkMapa,
 } from '../../util/formatos.ts'
-import { abrirConfiguracoesDoApp } from '../../nativo/gpsEmSegundoPlano.ts'
+import { abrirConfiguracoesDoApp } from '../../nativo/rastreamento.ts'
 import { ehAppNativo } from '../../nativo/plataforma.ts'
 import { localizacaoBloqueada, obterLocalizacao } from '../../util/localizacao.ts'
 import { AvisosColetas } from './AvisosColetas.tsx'

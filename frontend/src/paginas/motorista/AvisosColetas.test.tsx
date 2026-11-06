@@ -10,7 +10,7 @@ const app = vi.hoisted(() => ({
 }))
 vi.mock('../../nativo/plataforma.ts', () => ({ ehAppNativo: () => true }))
 vi.mock('../../nativo/avisosNoApp.ts', () => ({ ativarAvisosNoApp: app.ativar }))
-vi.mock('../../nativo/gpsEmSegundoPlano.ts', () => ({ abrirConfiguracoesDoApp: app.abrirConfiguracoes }))
+vi.mock('../../nativo/rastreamento.ts', () => ({ abrirConfiguracoesDoApp: app.abrirConfiguracoes }))
 
 const abrir = () => renderizar(<AvisosColetas />, { sessao: sessaoDe('MOTORISTA') })
 

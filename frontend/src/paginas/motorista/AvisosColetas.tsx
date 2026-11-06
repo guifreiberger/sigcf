@@ -3,7 +3,7 @@ import { Bell, BellOff, BellRing, LoaderCircle, Settings, Smartphone } from 'luc
 import { useEffect, useState } from 'react'
 import { MensagemErro } from '../../componentes/Estados.tsx'
 import { ativarAvisosNoApp, type EstadoAvisosNoApp } from '../../nativo/avisosNoApp.ts'
-import { abrirConfiguracoesDoApp } from '../../nativo/gpsEmSegundoPlano.ts'
+import { abrirConfiguracoesDoApp } from '../../nativo/rastreamento.ts'
 import { ehAppNativo } from '../../nativo/plataforma.ts'
 import {
   ativarAvisos,
