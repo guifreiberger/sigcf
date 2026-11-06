@@ -41,7 +41,7 @@ O motorista pode usar o SIGCF de dois jeitos. No **app Android**, o trajeto cont
 - `POST /rastreamento/pontos` só aceita leituras do **próprio motorista**, feitas durante uma coleta dele.
 - Cada leitura guarda o **horário do celular** (`registrado_em`), não o do envio, e vai para a coleta que estava em andamento **nesse horário**, mesmo que chegue depois de a coleta terminar. Nesse caso, a distância gravada na ordem é recalculada. Uma tolerância de 1 minuto cobre a diferença entre o relógio do celular e o do servidor.
 - Leituras de fora de qualquer coleta do motorista são descartadas. Se nenhuma leitura do lote serve e ele não tem coleta em andamento, a resposta é **409**, e o celular descarta a fila.
-- Antes, o servidor gravava cada lote na coleta em andamento na hora da chegada. Num teste de campo em 06/11/2026, o envio travou quando o celular trocou o Wi-Fi pelo 4G, e as leituras de uma coleta só chegaram durante a coleta seguinte, que ficou com o trajeto e a distância da anterior.
+- Antes, o servidor gravava cada lote na coleta em andamento na hora da chegada. Num teste de campo em 06/11/2026, o envio travou quando o celular trocou o Wi-Fi pelo 4G, e as leituras de uma coleta só chegaram durante a coleta seguinte, que ficou com o trajeto e a distância da anterior. Uma migration devolveu os pontos gravados assim à coleta em que foram lidos e recalculou as distâncias.
 - Só o **gestor** consulta os trajetos (`GET /rastreamento/em-rota` e `GET /rastreamento/ordens/:id`).
 
 ## Cálculos
