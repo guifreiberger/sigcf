@@ -153,13 +153,37 @@ export async function reatribuirPontosPeloHorario(banco: Banco) {
   // Só a coleta terminada tem a distância gravada; a em andamento é calculada na hora.
   for (const ordemId of afetadas) {
     if (!corridaDaOrdem.get(ordemId)?.fim) continue;
-    const distancia = distanciaPercorrida(
-      pontosConfiaveis(await pontosDaOrdem(banco, ordemId)),
-    );
     await banco.query(
       'UPDATE ordem_coleta SET distancia_metros = ? WHERE id = ?',
-      [distancia, ordemId],
+      [await distanciaDaOrdem(banco, ordemId), ordemId],
     );
   }
   return movidos;
+}
+
+// Regrava a distância das coletas terminadas quando as regras do trajeto mudam (como o descarte
+// dos saltos do GPS), para o dashboard e o relatório mostrarem o valor certo.
+export async function recalcularDistancias(banco: Banco) {
+  const ordens = (await banco.query(
+    `SELECT id, distancia_metros AS distanciaMetros
+     FROM ordem_coleta WHERE distancia_metros IS NOT NULL`,
+  )) as { id: number; distanciaMetros: number | string }[];
+
+  let alteradas = 0;
+  for (const { id, distanciaMetros } of ordens) {
+    const distancia = await distanciaDaOrdem(banco, id);
+    if (distancia === Number(distanciaMetros)) continue;
+    await banco.query(
+      'UPDATE ordem_coleta SET distancia_metros = ? WHERE id = ?',
+      [distancia, id],
+    );
+    alteradas++;
+  }
+  return alteradas;
+}
+
+async function distanciaDaOrdem(banco: Banco, ordemId: number) {
+  return distanciaPercorrida(
+    pontosConfiaveis(await pontosDaOrdem(banco, ordemId)),
+  );
 }

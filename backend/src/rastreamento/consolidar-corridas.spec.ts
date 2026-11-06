@@ -1,6 +1,7 @@
 import {
   consolidarCorridasAntigas,
   reatribuirPontosPeloHorario,
+  recalcularDistancias,
 } from './consolidar-corridas.js';
 
 // Banco falso: responde às consultas da função e guarda os UPDATEs.
@@ -199,5 +200,41 @@ describe('reatribuirPontosPeloHorario', () => {
 
     await expect(reatribuirPontosPeloHorario(banco)).resolves.toBe(0);
     expect(pontos[0].ordemId).toBe(116);
+  });
+});
+
+describe('recalcularDistancias', () => {
+  // Um milésimo de grau de latitude equivale a cerca de 111 metros.
+  const leitura = (milesimos: number, segundos: number) => ({
+    latitude: (-26.48 + milesimos / 1000).toFixed(6),
+    longitude: '-49.070000',
+    precisaoMetros: 8,
+    registradoEm: new Date(Date.UTC(2026, 10, 6, 11, 20, segundos)),
+  });
+
+  it('regrava só a distância que mudou com as regras do trajeto, como o descarte de saltos do GPS', async () => {
+    const atualizacoes: unknown[][] = [];
+    const pontosPorOrdem: Record<number, object[]> = {
+      // Com um salto de 900 m que vai e volta em 24 s.
+      114: [leitura(0, 0), leitura(1, 12), leitura(9, 24), leitura(2, 36)],
+      115: [leitura(0, 0), leitura(1, 12)],
+    };
+    const banco = {
+      query: vi.fn(async (sql: string, parametros: unknown[] = []) => {
+        if (sql.includes('FROM ordem_coleta'))
+          return [
+            { id: 114, distanciaMetros: 1999 },
+            { id: 115, distanciaMetros: 111 },
+          ];
+        if (sql.includes('FROM ponto_trajeto'))
+          return pontosPorOrdem[parametros[0] as number] ?? [];
+        if (sql.startsWith('UPDATE')) atualizacoes.push(parametros);
+        return [];
+      }),
+    };
+
+    await expect(recalcularDistancias(banco)).resolves.toBe(1);
+
+    expect(atualizacoes).toEqual([[222, 114]]);
   });
 });
