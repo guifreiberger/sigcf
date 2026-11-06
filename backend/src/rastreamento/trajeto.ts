@@ -39,13 +39,54 @@ export function distanciaEntre(a: Coordenada, b: Coordenada): number {
   return 2 * RAIO_DA_TERRA_METROS * Math.asin(Math.sqrt(h));
 }
 
+// Um caminhão de coleta não passa disso; uma velocidade maior entre duas leituras é o GPS que
+// "pulou" (reflexo do sinal em prédios ou posição estimada pela antena ou pelo Wi-Fi), mesmo
+// quando a leitura diz ter boa precisão.
+export const VELOCIDADE_MAXIMA_KMH = 120;
+
+// Quantas leituras seguintes decidem se um salto foi do GPS ou do caminhão.
+const LEITURAS_PARA_CONFIRMAR = 3;
+
+function velocidadeKmh(a: LeituraGps, b: LeituraGps) {
+  const segundos = Math.max(
+    1,
+    (b.registradoEm.getTime() - a.registradoEm.getTime()) / 1000,
+  );
+  return (distanciaEntre(a, b) / segundos) * 3.6;
+}
+
+// Descarta a leitura que exigiria uma velocidade impossível a partir da última aceita, a não
+// ser que as seguintes confirmem a nova posição. Se alguma das seguintes volta para perto de
+// onde o caminhão estava, o salto foi do GPS. A última leitura ainda não tem como ser
+// confirmada e, com salto, também fica de fora.
+function semSaltos<T extends LeituraGps>(pontos: T[]): T[] {
+  const aceitos: T[] = [];
+  pontos.forEach((ponto, i) => {
+    const ultimo = aceitos.at(-1);
+    if (ultimo && velocidadeKmh(ultimo, ponto) > VELOCIDADE_MAXIMA_KMH) {
+      const seguintes = pontos.slice(i + 1, i + 1 + LEITURAS_PARA_CONFIRMAR);
+      const confirmado =
+        seguintes.length > 0 &&
+        seguintes.every(
+          (seguinte) => velocidadeKmh(ultimo, seguinte) > VELOCIDADE_MAXIMA_KMH,
+        );
+      if (!confirmado) return;
+    }
+    aceitos.push(ponto);
+  });
+  return aceitos;
+}
+
 export function pontosConfiaveis<T extends LeituraGps>(pontos: T[]): T[] {
-  return pontos
-    .filter(
-      (p) =>
-        p.precisaoMetros === null || p.precisaoMetros <= PRECISAO_MAXIMA_METROS,
-    )
-    .sort((a, b) => a.registradoEm.getTime() - b.registradoEm.getTime());
+  return semSaltos(
+    pontos
+      .filter(
+        (p) =>
+          p.precisaoMetros === null ||
+          p.precisaoMetros <= PRECISAO_MAXIMA_METROS,
+      )
+      .sort((a, b) => a.registradoEm.getTime() - b.registradoEm.getTime()),
+  );
 }
 
 // Espera os pontos já filtrados e ordenados por pontosConfiaveis.

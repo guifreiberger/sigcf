@@ -60,9 +60,77 @@ describe('trajeto da coleta (RF11)', () => {
         0, 0.001, 0.002,
       ]);
     });
+
+    // Caso real (ordem 114): uma leitura com precisão de 22 m caiu a 900 m do caminho, o que
+    // daria 266 km/h para chegar até ela e 295 km/h para voltar.
+    it('descarta a leitura que salta para longe e volta, numa velocidade impossível', () => {
+      const pontos = [
+        ponto(0, 0),
+        ponto(1, 12),
+        ponto(9, 24),
+        ponto(2, 36),
+        ponto(3, 48),
+      ];
+
+      expect(pontosConfiaveis(pontos)).toEqual([
+        pontos[0],
+        pontos[1],
+        pontos[3],
+        pontos[4],
+      ]);
+    });
+
+    it('descarta também um salto de duas leituras seguidas', () => {
+      const pontos = [
+        ponto(0, 0),
+        ponto(1, 12),
+        ponto(20, 24),
+        ponto(20.1, 36),
+        ponto(2, 48),
+        ponto(3, 60),
+      ];
+
+      expect(pontosConfiaveis(pontos).map((p) => p.latitude)).toEqual([
+        0, 0.001, 0.002, 0.003,
+      ]);
+    });
+
+    it('descarta o salto na última leitura, que ainda não tem como ser confirmado', () => {
+      const pontos = [ponto(0, 0), ponto(1, 12), ponto(9, 24)];
+
+      expect(pontosConfiaveis(pontos)).toEqual([pontos[0], pontos[1]]);
+    });
+
+    it('aceita a nova posição quando as leituras seguintes a confirmam', () => {
+      const pontos = [
+        ponto(0, 0),
+        ponto(20, 12),
+        ponto(20.1, 24),
+        ponto(20.2, 36),
+        ponto(20.3, 48),
+      ];
+
+      expect(pontosConfiaveis(pontos)).toEqual(pontos);
+    });
+
+    it('mantém um deslocamento real depois de um tempo sem sinal', () => {
+      // 3,3 km em 5 minutos: 40 km/h.
+      const pontos = [ponto(0, 0), ponto(30, 300), ponto(31, 312)];
+
+      expect(pontosConfiaveis(pontos)).toEqual(pontos);
+    });
   });
 
   describe('distanciaPercorrida', () => {
+    it('não soma o vaivém de um salto do GPS', () => {
+      const comSalto = [ponto(0, 0), ponto(1, 12), ponto(9, 24), ponto(2, 36)];
+      const semSalto = [ponto(0, 0), ponto(1, 12), ponto(2, 36)];
+
+      expect(distanciaPercorrida(pontosConfiaveis(comSalto))).toBe(
+        distanciaPercorrida(pontosConfiaveis(semSalto)),
+      );
+    });
+
     it('soma os trechos do caminho', () => {
       const pontos = [ponto(0, 0), ponto(1, 15), ponto(2, 30), ponto(4, 45)];
 
