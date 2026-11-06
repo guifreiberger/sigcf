@@ -50,7 +50,7 @@ flowchart TB
         nginx["<b>Servidor web</b><br/>[nginx]<br/>Entrega os arquivos da aplicação,<br/>cabeçalhos de segurança e proxy de /api"]:::container
         api["<b>API</b><br/>[Node 22, NestJS 12, TypeORM]<br/>Regras de negócio, autenticação JWT,<br/>inteligência e rastreamento"]:::container
         db[("<b>Banco de dados</b><br/>[MySQL 8, InnoDB]<br/>Cadastros, ordens, histórico, trajetos,<br/>inscrições de push e aparelhos do app")]:::container
-        app["<b>App Android</b><br/>[Capacitor 8, mesmo frontend]<br/>Motorista: GPS em segundo plano<br/>e avisos pelo Firebase"]:::container
+        app["<b>App Android</b><br/>[Capacitor 8, mesmo frontend]<br/>Motorista: trajeto por serviço nativo<br/>e avisos pelo Firebase"]:::container
     end
 
     push["<b>Serviços de push</b><br/>[Sistema externo]"]:::externo

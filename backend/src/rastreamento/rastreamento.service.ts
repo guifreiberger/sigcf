@@ -4,16 +4,27 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, LessThanOrEqual, Repository } from 'typeorm';
+import {
+  In,
+  IsNull,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  Repository,
+} from 'typeorm';
 import type { UsuarioAutenticado } from '../auth/usuario-autenticado.js';
 import { OrdemColeta } from '../ordens/ordem-coleta.entity.js';
 import { StatusOrdem } from '../ordens/status-ordem.enum.js';
 import { RegistrarPontosDto } from './dto/pontos.dto.js';
 import { PontoTrajeto } from './ponto-trajeto.entity.js';
 import {
+  type Corrida,
+  corridasDaLeitura,
+  distanciaPercorrida,
   periodoDaCorrida,
   PRECISAO_MAXIMA_METROS,
+  pontosConfiaveis,
   resumirTrajeto,
+  TOLERANCIA_DA_CORRIDA_MS,
 } from './trajeto.js';
 
 const CAMPOS_DO_PONTO = {
@@ -32,33 +43,89 @@ export class RastreamentoService {
     private readonly ordens: Repository<OrdemColeta>,
   ) {}
 
-  // Coleta mínima: só há rastreamento enquanto o próprio motorista tem coleta em andamento.
+  // Coleta mínima: só há rastreamento durante as coletas do próprio motorista. Cada leitura vai
+  // para a coleta que estava em andamento na hora em que foi feita, mesmo chegando atrasada.
   async registrar(
     motorista: UsuarioAutenticado,
     { pontos }: RegistrarPontosDto,
   ) {
-    const emAndamento = await this.ordens.find({
-      select: { id: true },
-      where: { motoristaId: motorista.id, status: StatusOrdem.EM_ANDAMENTO },
-    });
-    if (!emAndamento.length) {
+    const leituras = pontos.map((p) => ({
+      latitude: p.latitude,
+      longitude: p.longitude,
+      precisaoMetros:
+        p.precisaoMetros == null ? null : Math.round(p.precisaoMetros),
+      registradoEm: new Date(p.registradoEm),
+    }));
+    const maisAntiga = Math.min(
+      ...leituras.map((l) => l.registradoEm.getTime()),
+    );
+    const corridas = await this.corridasDoMotorista(
+      motorista.id,
+      new Date(maisAntiga - TOLERANCIA_DA_CORRIDA_MS),
+    );
+
+    const registros = leituras.flatMap((leitura) =>
+      corridasDaLeitura(leitura.registradoEm, corridas).map((ordemId) => ({
+        ordemId,
+        ...leitura,
+      })),
+    );
+    if (!registros.length) {
+      // Leituras antigas demais durante uma coleta: descarta e segue.
+      if (corridas.some((c) => !c.fim)) return;
       throw new ConflictException(
         'Nenhuma coleta em andamento para registrar o trajeto.',
       );
     }
+    await this.pontos.insert(registros);
 
-    await this.pontos.insert(
-      emAndamento.flatMap(({ id }) =>
-        pontos.map((p) => ({
-          ordemId: id,
-          latitude: p.latitude,
-          longitude: p.longitude,
-          precisaoMetros:
-            p.precisaoMetros == null ? null : Math.round(p.precisaoMetros),
-          registradoEm: new Date(p.registradoEm),
-        })),
-      ),
+    // A distância de uma coleta é gravada quando ela termina; leituras que chegam depois
+    // precisam atualizá-la.
+    const terminadas = new Set(
+      corridas.filter((c) => c.fim).map((c) => c.ordemId),
     );
+    const atrasadas = new Set(
+      registros.map((r) => r.ordemId).filter((id) => terminadas.has(id)),
+    );
+    for (const ordemId of atrasadas) await this.atualizarDistancia(ordemId);
+  }
+
+  // Coletas do motorista em andamento ou terminadas desde o momento dado. Quem termina uma
+  // coleta atualiza a ordem, então a data de atualização nunca é anterior ao fim da corrida.
+  private async corridasDoMotorista(
+    motoristaId: number,
+    desde: Date,
+  ): Promise<Corrida[]> {
+    const ordens = await this.ordens.find({
+      where: [
+        { motoristaId, status: StatusOrdem.EM_ANDAMENTO },
+        {
+          motoristaId,
+          status: In([
+            StatusOrdem.CONCLUIDA,
+            StatusOrdem.FALHA,
+            StatusOrdem.CANCELADA,
+          ]),
+          updatedAt: MoreThanOrEqual(desde),
+        },
+      ],
+      relations: { historico: true },
+      order: { historico: { id: 'ASC' } },
+    });
+    return ordens.flatMap((ordem) => {
+      const { inicio, fim } = periodoDaCorrida(ordem.historico);
+      return inicio ? [{ ordemId: ordem.id, inicio, fim }] : [];
+    });
+  }
+
+  private async atualizarDistancia(ordemId: number) {
+    const leituras = await this.pontos.find({
+      select: CAMPOS_DO_PONTO,
+      where: { ordemId },
+    });
+    await this.ordens.update(ordemId, {
+      distanciaMetros: distanciaPercorrida(pontosConfiaveis(leituras)),
+    });
   }
 
   async trajeto(ordemId: number) {

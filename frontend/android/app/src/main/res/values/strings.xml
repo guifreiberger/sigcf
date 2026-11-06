@@ -5,7 +5,7 @@
     <string name="custom_url_scheme">io.github.guifreiberger.sigcf</string>
 
     <!-- Notificação fixa enquanto o trajeto da coleta é gravado em segundo plano. -->
-    <string name="capacitor_background_geolocation_notification_channel_name">Trajeto da coleta</string>
-    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_notificacao</string>
-    <string name="capacitor_background_geolocation_notification_color">#FACC15</string>
+    <string name="rastreamento_canal">Trajeto da coleta</string>
+    <string name="rastreamento_titulo">SIGCF: coleta em andamento</string>
+    <string name="rastreamento_texto">Sua localização é enviada ao gestor até você concluir a coleta.</string>
 </resources>
