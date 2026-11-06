@@ -30,9 +30,25 @@ const notebook = {
   auth: 'a',
 };
 
+// Imita o "insert ... on duplicate key update" montado pelo QueryBuilder do TypeORM.
+const insercaoFalsa = () => {
+  const insercao = {
+    insert: vi.fn(),
+    values: vi.fn(),
+    orUpdate: vi.fn(),
+    updateEntity: vi.fn(),
+    execute: vi.fn(),
+  };
+  for (const passo of ['insert', 'values', 'orUpdate', 'updateEntity'] as const)
+    insercao[passo].mockReturnValue(insercao);
+  return insercao;
+};
+
 describe('NotificacoesService', () => {
+  const insercaoDeInscricao = insercaoFalsa();
+  const insercaoDeAparelho = insercaoFalsa();
   const inscricoes = {
-    upsert: vi.fn(),
+    createQueryBuilder: vi.fn(() => insercaoDeInscricao),
     delete: vi.fn(),
     findBy: vi.fn(),
     find: vi.fn(),
@@ -42,7 +58,7 @@ describe('NotificacoesService', () => {
     enviar: vi.fn(),
   };
   const aparelhos = {
-    upsert: vi.fn(),
+    createQueryBuilder: vi.fn(() => insercaoDeAparelho),
     delete: vi.fn(),
     findBy: vi.fn(),
     find: vi.fn(),
@@ -65,16 +81,25 @@ describe('NotificacoesService', () => {
     expect(service.chavePublica()).toEqual({ chavePublica: 'chave-vapid' });
   });
 
-  it('inscrever grava ou atualiza a inscrição pelo endpoint', async () => {
+  // A mesma inscrição volta a cada abertura do app; o upsert do TypeORM dava erro 500 nesse caso.
+  it('inscrever grava ou atualiza a inscrição pelo endpoint, sem reler a entidade', async () => {
     await service.inscrever(7, {
       endpoint: celular.endpoint,
       keys: { p256dh: 'p', auth: 'a' },
     });
 
-    expect(inscricoes.upsert).toHaveBeenCalledWith(
-      { usuarioId: 7, endpoint: celular.endpoint, p256dh: 'p', auth: 'a' },
+    expect(insercaoDeInscricao.values).toHaveBeenCalledWith({
+      usuarioId: 7,
+      endpoint: celular.endpoint,
+      p256dh: 'p',
+      auth: 'a',
+    });
+    expect(insercaoDeInscricao.orUpdate).toHaveBeenCalledWith(
+      ['usuario_id', 'p256dh', 'auth'],
       ['endpoint'],
     );
+    expect(insercaoDeInscricao.updateEntity).toHaveBeenCalledWith(false);
+    expect(insercaoDeInscricao.execute).toHaveBeenCalledOnce();
   });
 
   it('remover só apaga inscrições do próprio usuário', async () => {
@@ -151,10 +176,16 @@ describe('NotificacoesService', () => {
     it('registra o aparelho, transferindo-o se outro usuário entrou nele antes', async () => {
       await service.registrarAparelho(7, 'token-do-joao');
 
-      expect(aparelhos.upsert).toHaveBeenCalledWith(
-        { usuarioId: 7, token: 'token-do-joao' },
+      expect(insercaoDeAparelho.values).toHaveBeenCalledWith({
+        usuarioId: 7,
+        token: 'token-do-joao',
+      });
+      expect(insercaoDeAparelho.orUpdate).toHaveBeenCalledWith(
+        ['usuario_id'],
         ['token'],
       );
+      expect(insercaoDeAparelho.updateEntity).toHaveBeenCalledWith(false);
+      expect(insercaoDeAparelho.execute).toHaveBeenCalledOnce();
     });
 
     it('remove só o aparelho do próprio usuário', async () => {

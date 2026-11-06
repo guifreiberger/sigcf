@@ -609,6 +609,15 @@ describe('API do SIGCF (e2e)', () => {
       );
     });
 
+    it('aceita a mesma inscrição de novo, como a cada vez que o app abre', async () => {
+      await inscrever('joao', endpointJoao).expect(204);
+      await inscrever('joao', endpointJoao).expect(204);
+
+      const inscricoes = await inscricoesDe(endpointJoao);
+      expect(inscricoes).toHaveLength(1);
+      expect(inscricoes[0].usuarioId).toBe(ids.joao);
+    });
+
     it('avisa o motorista quando a coleta é cancelada', async () => {
       const { body } = await api()
         .post('/api/ordens')
@@ -817,6 +826,25 @@ describe('API do SIGCF (e2e)', () => {
         token: tokenDoJoao,
         aviso: { titulo: 'Nova coleta para você', url: '/motorista' },
       });
+    });
+
+    it('aceita o mesmo aparelho de novo, como a cada vez que o app abre', async () => {
+      await registrar('joao', tokenDoJoao).expect(204);
+      await registrar('joao', tokenDoJoao).expect(204);
+
+      const aparelhos = await aparelhosCom(tokenDoJoao);
+      expect(aparelhos).toHaveLength(1);
+      expect(aparelhos[0].usuarioId).toBe(ids.joao);
+    });
+
+    it('passa o aparelho para quem entrar nele depois', async () => {
+      const compartilhado = 'token-firebase-compartilhado:APA91b-e2e';
+      await registrar('joao', compartilhado).expect(204);
+      await registrar('maria', compartilhado).expect(204);
+
+      const aparelhos = await aparelhosCom(compartilhado);
+      expect(aparelhos).toHaveLength(1);
+      expect(aparelhos[0].usuarioId).toBe(ids.maria);
     });
 
     it('apaga o aparelho que o Firebase informa como desinstalado', async () => {
