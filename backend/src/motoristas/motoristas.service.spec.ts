@@ -1,8 +1,13 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { compare } from 'bcryptjs';
 import type { Repository } from 'typeorm';
 import { Perfil } from '../usuarios/perfil.enum.js';
 import type { Usuario } from '../usuarios/usuario.entity.js';
+import type { Veiculo } from '../veiculos/veiculo.entity.js';
 import { MotoristasService } from './motoristas.service.js';
 
 const joao = {
@@ -28,10 +33,56 @@ function criarRepo() {
 describe('MotoristasService', () => {
   let repo: ReturnType<typeof criarRepo>;
   let service: MotoristasService;
+  const veiculos = { existsBy: vi.fn() };
 
   beforeEach(() => {
     repo = criarRepo();
-    service = new MotoristasService(repo as unknown as Repository<Usuario>);
+    veiculos.existsBy.mockReset().mockResolvedValue(true);
+    service = new MotoristasService(
+      repo as unknown as Repository<Usuario>,
+      veiculos as unknown as Repository<Veiculo>,
+    );
+  });
+
+  describe('caminhão padrão (RF14)', () => {
+    const novo = {
+      nome: 'João',
+      email: 'joao@sigcf.local',
+      senha: 'segredo1',
+      telefone: '47999990000',
+    };
+
+    it('guarda o caminhão padrão do motorista, se ele estiver ativo', async () => {
+      repo.findOneBy.mockResolvedValue(joao);
+
+      await service.criar({ ...novo, veiculoPadraoId: 4 });
+
+      expect(veiculos.existsBy).toHaveBeenCalledWith({ id: 4, ativo: true });
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ veiculoPadraoId: 4 }),
+      );
+    });
+
+    it('recusa caminhão padrão inexistente ou inativo', async () => {
+      veiculos.existsBy.mockResolvedValue(false);
+      repo.findOneBy.mockResolvedValue(joao);
+
+      await expect(
+        service.atualizar(7, { veiculoPadraoId: 99 }),
+      ).rejects.toThrow(
+        new UnprocessableEntityException('Caminhão não encontrado ou inativo.'),
+      );
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('tira o caminhão padrão com nulo, sem consultar a frota', async () => {
+      repo.findOneBy.mockResolvedValue(joao);
+
+      await service.atualizar(7, { veiculoPadraoId: null });
+
+      expect(veiculos.existsBy).not.toHaveBeenCalled();
+      expect(repo.update).toHaveBeenCalledWith(7, { veiculoPadraoId: null });
+    });
   });
 
   describe('listar', () => {

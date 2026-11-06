@@ -14,6 +14,7 @@ import { Veiculo } from '../veiculos/veiculo.entity.js';
 import type { CriarOrdemDto } from './dto/ordem.dto.js';
 import { HistoricoStatus } from './historico-status.entity.js';
 import { OrdemColeta } from './ordem-coleta.entity.js';
+import { PontoTrajeto } from '../rastreamento/ponto-trajeto.entity.js';
 import { OrdensService } from './ordens.service.js';
 import { StatusOrdem } from './status-ordem.enum.js';
 
@@ -55,6 +56,7 @@ describe('OrdensService', () => {
     save: vi.fn(async (dados: object) => ({ id: 10, ...dados })),
     insert: vi.fn(),
     update: vi.fn(),
+    find: vi.fn(),
   };
   const dataSource = {
     transaction: vi.fn((trabalho: (gerenciador: typeof em) => unknown) =>
@@ -948,6 +950,147 @@ describe('OrdensService', () => {
       await expect(
         service.editar(99, { observacao: 'x' }, gestor),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('peso da balança (RF08)', () => {
+    it('registra o peso na coleta concluída e anota no histórico', async () => {
+      em.findOne.mockResolvedValue(
+        ordemCom({ status: StatusOrdem.CONCLUIDA, pesoRealKg: null }),
+      );
+      ordens.findOne.mockResolvedValue(
+        ordemCom({ status: StatusOrdem.CONCLUIDA, pesoRealKg: 1230.5 }),
+      );
+
+      const ordem = await service.registrarPeso(
+        10,
+        { pesoRealKg: 1230.5 },
+        gestor,
+      );
+
+      expect(em.findOne).toHaveBeenCalledWith(OrdemColeta, {
+        where: { id: 10 },
+        lock: { mode: 'pessimistic_write' },
+      });
+      expect(em.update).toHaveBeenCalledWith(OrdemColeta, 10, {
+        pesoRealKg: 1230.5,
+      });
+      expect(em.insert).toHaveBeenCalledWith(HistoricoStatus, {
+        ordemId: 10,
+        usuarioId: 1,
+        statusAnterior: StatusOrdem.CONCLUIDA,
+        statusNovo: StatusOrdem.CONCLUIDA,
+        motivo: 'Peso da balança: 1.230,5 kg',
+      });
+      expect(ordem.pesoRealKg).toBe(1230.5);
+    });
+
+    it('não regrava o mesmo peso', async () => {
+      em.findOne.mockResolvedValue(
+        ordemCom({ status: StatusOrdem.CONCLUIDA, pesoRealKg: 800 }),
+      );
+      ordens.findOne.mockResolvedValue(
+        ordemCom({ status: StatusOrdem.CONCLUIDA }),
+      );
+
+      await service.registrarPeso(10, { pesoRealKg: 800 }, gestor);
+
+      expect(em.update).not.toHaveBeenCalled();
+      expect(em.insert).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      StatusOrdem.AGUARDANDO,
+      StatusOrdem.EM_ANDAMENTO,
+      StatusOrdem.FALHA,
+    ])('recusa coleta %s, que não foi concluída', async (status) => {
+      em.findOne.mockResolvedValue(ordemCom({ status }));
+
+      await expect(
+        service.registrarPeso(10, { pesoRealKg: 500 }, gestor),
+      ).rejects.toThrow(
+        new ConflictException(
+          'O peso da balança só pode ser registrado em coleta concluída.',
+        ),
+      );
+    });
+
+    it('lança NotFound quando a ordem não existe', async () => {
+      em.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.registrarPeso(99, { pesoRealKg: 500 }, gestor),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('consolidação do trajeto ao finalizar a coleta', () => {
+    const inicio = new Date(`${HOJE}T14:30:00Z`);
+    // Cada milésimo de grau de latitude equivale a cerca de 111 m.
+    const pontos = [
+      {
+        latitude: -26.4851,
+        longitude: -49.07,
+        precisaoMetros: 8,
+        registradoEm: new Date(`${HOJE}T14:31:00Z`),
+      },
+      {
+        latitude: -26.4841,
+        longitude: -49.07,
+        precisaoMetros: 8,
+        registradoEm: new Date(`${HOJE}T14:40:00Z`),
+      },
+    ];
+
+    beforeEach(() => {
+      em.findOne.mockImplementation(async (entidade: unknown) =>
+        entidade === OrdemColeta
+          ? ordemCom({ status: StatusOrdem.EM_ANDAMENTO })
+          : { createdAt: inicio },
+      );
+      em.find.mockResolvedValue(pontos);
+      ordens.findOne.mockResolvedValue(
+        ordemCom({ status: StatusOrdem.CONCLUIDA }),
+      );
+    });
+
+    it('grava na ordem a distância e a duração da corrida, para o relatório e o dashboard', async () => {
+      await service.alterarStatus(10, { status: StatusOrdem.CONCLUIDA }, joao);
+
+      expect(em.find).toHaveBeenCalledWith(PontoTrajeto, {
+        select: {
+          latitude: true,
+          longitude: true,
+          precisaoMetros: true,
+          registradoEm: true,
+        },
+        where: { ordemId: 10 },
+      });
+      expect(em.findOne).toHaveBeenCalledWith(HistoricoStatus, {
+        where: { ordemId: 10, statusNovo: StatusOrdem.EM_ANDAMENTO },
+        order: { id: 'ASC' },
+      });
+      // Início às 14:30 e conclusão às 15:00 (relógio do teste).
+      expect(em.update).toHaveBeenCalledWith(OrdemColeta, 10, {
+        status: StatusOrdem.CONCLUIDA,
+        distanciaMetros: 111,
+        duracaoSegundos: 1800,
+      });
+    });
+
+    it('não consolida nada ao iniciar a coleta', async () => {
+      em.findOne.mockResolvedValue(ordemCom());
+
+      await service.alterarStatus(
+        10,
+        { status: StatusOrdem.EM_ANDAMENTO },
+        joao,
+      );
+
+      expect(em.find).not.toHaveBeenCalled();
+      expect(em.update).toHaveBeenCalledWith(OrdemColeta, 10, {
+        status: StatusOrdem.EM_ANDAMENTO,
+      });
     });
   });
 

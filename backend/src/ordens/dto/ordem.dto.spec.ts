@@ -6,6 +6,7 @@ import {
   AlterarStatusDto,
   CriarOrdemDto,
   EditarOrdemDto,
+  RegistrarPesoDto,
   FiltroOrdensDto,
 } from './ordem.dto.js';
 
@@ -120,6 +121,20 @@ describe('DTOs de ordem de coleta', () => {
       const { erros } = await validar(EditarOrdemDto, { status: 'CONCLUIDA' });
 
       expect(campos(erros)).toEqual(['status']);
+    });
+  });
+
+  describe('RegistrarPesoDto', () => {
+    it('aceita o peso da balança com até duas casas decimais', async () => {
+      expect(
+        (await validar(RegistrarPesoDto, { pesoRealKg: 1230.55 })).erros,
+      ).toEqual([]);
+    });
+
+    it.each([0, -5, 10.123, '800'])('recusa o peso %j', async (pesoRealKg) => {
+      const { erros } = await validar(RegistrarPesoDto, { pesoRealKg });
+
+      expect(campos(erros)).toEqual(['pesoRealKg']);
     });
   });
 

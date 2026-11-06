@@ -764,6 +764,15 @@ describe('API do SIGCF (e2e)', () => {
       expect(res.body.duracaoSegundos).toBeGreaterThanOrEqual(0);
     });
 
+    it('grava na ordem a distância e a duração ao concluir', async () => {
+      const res = await api()
+        .get(`/api/ordens/${ordem}`)
+        .set(como('gestor'))
+        .expect(200);
+      expect(res.body.distanciaMetros).toBe(445);
+      expect(res.body.duracaoSegundos).toBeGreaterThanOrEqual(0);
+    });
+
     it('tira do mapa a coleta concluída', async () => {
       const res = await api()
         .get('/api/rastreamento/em-rota')
@@ -913,6 +922,65 @@ describe('API do SIGCF (e2e)', () => {
         status: 'CANCELADA',
         motivo: 'Teste de edição',
       }).expect(200);
+    });
+  });
+
+  describe('RF08 — peso da balança', () => {
+    let ordem: number;
+    const registrarPeso = (quem: Quem, pesoRealKg: number) =>
+      api()
+        .patch(`/api/ordens/${ordem}/peso`)
+        .set(como(quem))
+        .send({ pesoRealKg });
+
+    beforeAll(async () => {
+      const { body } = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+      ordem = body.id;
+    });
+
+    it('só aceita o peso depois que a coleta é concluída', async () => {
+      await registrarPeso('gestor', 800).expect(409);
+
+      await alterarStatus('joao', ordem, { status: 'EM_ANDAMENTO' }).expect(
+        200,
+      );
+      await alterarStatus('joao', ordem, { status: 'CONCLUIDA' }).expect(200);
+
+      const res = await registrarPeso('gestor', 1230.5).expect(200);
+      expect(res.body.pesoRealKg).toBe(1230.5);
+      expect(res.body.historico.at(-1).motivo).toBe(
+        'Peso da balança: 1.230,5 kg',
+      );
+    });
+
+    it('somente o gestor registra o peso', () =>
+      registrarPeso('joao', 900).expect(403));
+  });
+
+  describe('RF14 — caminhão padrão do motorista', () => {
+    it('guarda o caminhão padrão no cadastro do motorista', async () => {
+      const { body } = await api()
+        .post('/api/motoristas')
+        .set(como('gestor'))
+        .send({
+          nome: 'Motorista com Caminhão',
+          email: 'padrao@e2e.local',
+          senha: 'senha-e2e',
+          telefone: '47944444444',
+          veiculoPadraoId: ids.veiculo,
+        })
+        .expect(201);
+      expect(body.veiculoPadraoId).toBe(ids.veiculo);
+
+      await api()
+        .patch(`/api/motoristas/${body.id}`)
+        .set(como('gestor'))
+        .send({ veiculoPadraoId: ids.veiculoInativo })
+        .expect(422);
     });
   });
 
