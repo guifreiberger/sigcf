@@ -25,6 +25,8 @@ import {
   avisoNovaColeta,
 } from '../notificacoes/avisos.js';
 import { NotificacoesService } from '../notificacoes/notificacoes.service.js';
+import { PontoTrajeto } from '../rastreamento/ponto-trajeto.entity.js';
+import { resumirTrajeto } from '../rastreamento/trajeto.js';
 import { Perfil } from '../usuarios/perfil.enum.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
 import { Veiculo } from '../veiculos/veiculo.entity.js';
@@ -33,6 +35,7 @@ import {
   AlterarStatusDto,
   CriarOrdemDto,
   EditarOrdemDto,
+  RegistrarPesoDto,
   FiltroOrdensDto,
 } from './dto/ordem.dto.js';
 import { HistoricoStatus } from './historico-status.entity.js';
@@ -287,6 +290,39 @@ export class OrdensService {
     return atualizada;
   }
 
+  // O peso só é conhecido na balança, depois da coleta: o gestor registra na ordem concluída.
+  async registrarPeso(
+    id: number,
+    { pesoRealKg }: RegistrarPesoDto,
+    gestor: UsuarioAutenticado,
+  ) {
+    await this.dataSource.transaction(async (em) => {
+      const ordem = await em.findOne(OrdemColeta, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!ordem) {
+        throw new NotFoundException('Ordem de coleta não encontrada.');
+      }
+      if (ordem.status !== StatusOrdem.CONCLUIDA) {
+        throw new ConflictException(
+          'O peso da balança só pode ser registrado em coleta concluída.',
+        );
+      }
+      if (ordem.pesoRealKg === pesoRealKg) return;
+
+      await em.update(OrdemColeta, ordem.id, { pesoRealKg });
+      await em.insert(HistoricoStatus, {
+        ordemId: ordem.id,
+        usuarioId: gestor.id,
+        statusAnterior: ordem.status,
+        statusNovo: ordem.status,
+        motivo: `Peso da balança: ${pesoRealKg.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg`,
+      });
+    });
+    return this.detalhar(id, gestor);
+  }
+
   async listar(filtros: FiltroOrdensDto, usuario: UsuarioAutenticado) {
     const where: FindOptionsWhere<OrdemColeta> = {};
     if (filtros.data) where.dataColeta = filtros.data;
@@ -355,7 +391,15 @@ export class OrdensService {
       const local =
         usuario.perfil === Perfil.MOTORISTA ? dto.localizacao : undefined;
 
-      await em.update(OrdemColeta, ordem.id, { status: dto.status });
+      // Ao sair de "em andamento", a corrida termina: distância e duração ficam gravadas.
+      const corrida =
+        ordem.status === StatusOrdem.EM_ANDAMENTO
+          ? await this.consolidarTrajeto(em, ordem.id)
+          : {};
+      await em.update(OrdemColeta, ordem.id, {
+        status: dto.status,
+        ...corrida,
+      });
       await em.insert(HistoricoStatus, {
         ordemId: ordem.id,
         usuarioId: usuario.id,
@@ -465,6 +509,30 @@ export class OrdensService {
         avisoColetaAlterada(depois, dia),
       );
     }
+  }
+
+  private async consolidarTrajeto(em: EntityManager, ordemId: number) {
+    const pontos = await em.find(PontoTrajeto, {
+      select: {
+        latitude: true,
+        longitude: true,
+        precisaoMetros: true,
+        registradoEm: true,
+      },
+      where: { ordemId },
+    });
+    const inicio = await em.findOne(HistoricoStatus, {
+      where: { ordemId, statusNovo: StatusOrdem.EM_ANDAMENTO },
+      order: { id: 'ASC' },
+    });
+    const agora = new Date();
+    const { distanciaMetros, duracaoSegundos } = resumirTrajeto(
+      pontos,
+      inicio?.createdAt ?? null,
+      agora,
+      agora,
+    );
+    return { distanciaMetros, duracaoSegundos };
   }
 
   private async clienteAtivo(em: EntityManager, id: number) {

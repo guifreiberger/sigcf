@@ -86,6 +86,8 @@ describe('OrdensService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Sem pontos de trajeto, a menos que o teste diga outra coisa.
+    em.find.mockResolvedValue([]);
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(`${HOJE}T15:00:00Z`));
   });

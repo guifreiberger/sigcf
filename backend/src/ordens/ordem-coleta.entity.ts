@@ -72,6 +72,25 @@ export class OrdemColeta {
   })
   pesoEstimadoKg: number | null;
 
+  // Peso medido na balança depois da coleta, registrado pelo gestor (RF08).
+  @Column({
+    name: 'peso_real_kg',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    transformer: decimalParaNumero,
+  })
+  pesoRealKg: number | null;
+
+  // Gravados quando a coleta sai de "em andamento", a partir dos pontos do trajeto e do
+  // histórico, para o relatório e o dashboard não recalcularem tudo a cada consulta.
+  @Column({ name: 'distancia_metros', type: 'int', nullable: true })
+  distanciaMetros: number | null;
+
+  @Column({ name: 'duracao_segundos', type: 'int', nullable: true })
+  duracaoSegundos: number | null;
+
   @Column({ type: 'text', nullable: true })
   observacao: string | null;
 

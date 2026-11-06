@@ -93,6 +93,13 @@ export class EditarOrdemDto {
   veiculoId?: number | null;
 }
 
+export class RegistrarPesoDto {
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'peso da balança inválido' })
+  @IsPositive({ message: 'peso da balança deve ser maior que zero' })
+  @Max(99_999_999, { message: 'peso da balança inválido' })
+  pesoRealKg: number;
+}
+
 export class AceitarColetaDto {
   @IsInt()
   @IsPositive()
