@@ -5,6 +5,9 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { Cliente } from '../src/clientes/cliente.entity.js';
 import { hoje, somarDias } from '../src/common/data.js';
+import { AparelhoApp } from '../src/notificacoes/aparelho-app.entity.js';
+import type { Aviso } from '../src/notificacoes/avisos.js';
+import { EnviadorFcm } from '../src/notificacoes/enviador-fcm.js';
 import {
   type DestinoPush,
   EnviadorPush,
@@ -37,6 +40,17 @@ const enviadorFalso: EnviadorPush = {
   },
 };
 
+// Firebase falso: guarda o que seria enviado ao app Android de cada aparelho.
+const enviadosAoApp: { token: string; aviso: Aviso }[] = [];
+const desinstalados = new Set<string>();
+const fcmFalso: EnviadorFcm = {
+  ativo: true,
+  enviar: async (token: string, aviso: Aviso) => {
+    enviadosAoApp.push({ token, aviso });
+    return desinstalados.has(token) ? 'EXPIRADO' : 'ENVIADO';
+  },
+};
+
 describe('API do SIGCF (e2e)', () => {
   let app: NestExpressApplication;
   const tokens = {} as Record<Quem, string>;
@@ -62,6 +76,8 @@ describe('API do SIGCF (e2e)', () => {
     })
       .overrideProvider(EnviadorPush)
       .useValue(enviadorFalso)
+      .overrideProvider(EnviadorFcm)
+      .useValue(fcmFalso)
       .compile();
     app = configurarApp(
       moduleRef.createNestApplication<NestExpressApplication>(),
@@ -761,6 +777,64 @@ describe('API do SIGCF (e2e)', () => {
         .get('/api/rastreamento/ordens/999999')
         .set(como('gestor'))
         .expect(404));
+  });
+
+  describe('avisos no app Android (Firebase)', () => {
+    const tokenDoJoao = 'token-firebase-do-joao:APA91b-e2e';
+    const registrar = (quem: Quem, token: string) =>
+      api().post('/api/notificacoes/aparelhos').set(como(quem)).send({ token });
+    const aparelhosCom = (token: string) =>
+      app.get(DataSource).getRepository(AparelhoApp).findBy({ token });
+
+    beforeEach(() => {
+      enviadosAoApp.length = 0;
+    });
+
+    it('recusa um token que não é do Firebase', () =>
+      registrar('joao', 'token com espaço').expect(400));
+
+    it('avisa no app a coleta nova do motorista', async () => {
+      await registrar('joao', tokenDoJoao).expect(204);
+
+      await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+
+      await vi.waitFor(() => expect(enviadosAoApp).toHaveLength(1));
+      expect(enviadosAoApp[0]).toMatchObject({
+        token: tokenDoJoao,
+        aviso: { titulo: 'Nova coleta para você', url: '/motorista' },
+      });
+    });
+
+    it('apaga o aparelho que o Firebase informa como desinstalado', async () => {
+      const antigo = 'token-firebase-antigo:APA91b-e2e';
+      await registrar('joao', antigo).expect(204);
+      desinstalados.add(antigo);
+
+      await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+
+      await vi.waitFor(async () =>
+        expect(await aparelhosCom(antigo)).toHaveLength(0),
+      );
+      expect(await aparelhosCom(tokenDoJoao)).toHaveLength(1);
+    });
+
+    it('para de avisar o aparelho quando o motorista sai da conta', async () => {
+      await api()
+        .delete('/api/notificacoes/aparelhos')
+        .set(como('joao'))
+        .send({ token: tokenDoJoao })
+        .expect(204);
+
+      expect(await aparelhosCom(tokenDoJoao)).toHaveLength(0);
+    });
   });
 
   describe('RF12 — coleta disponível, quem pega?', () => {
