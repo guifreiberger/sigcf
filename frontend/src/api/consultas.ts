@@ -122,6 +122,43 @@ export function useCriarOrdem() {
   })
 }
 
+// Campos enviados na edição da ordem (RF13); nulo tira o motorista e o caminhão, o peso
+// estimado ou as observações.
+export interface EdicaoOrdem {
+  clienteId?: number
+  enderecoColeta?: string
+  dataColeta?: string
+  pesoEstimadoKg?: number | null
+  observacao?: string | null
+  motoristaId?: number | null
+  veiculoId?: number | null
+}
+
+function atualizarOrdemNoCache(queryClient: ReturnType<typeof useQueryClient>, ordem: Ordem) {
+  queryClient.setQueryData(['ordem', ordem.id], ordem)
+  for (const chave of ['ordens', 'resumo', 'dashboard']) {
+    queryClient.invalidateQueries({ queryKey: [chave] })
+  }
+}
+
+export function useEditarOrdem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, dados }: { id: number; dados: EdicaoOrdem }) =>
+      api<Ordem>(`/ordens/${id}`, { metodo: 'PATCH', corpo: dados }),
+    onSuccess: (ordem) => atualizarOrdemNoCache(queryClient, ordem),
+  })
+}
+
+export function useRegistrarPeso() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, pesoRealKg }: { id: number; pesoRealKg: number }) =>
+      api<Ordem>(`/ordens/${id}/peso`, { metodo: 'PATCH', corpo: { pesoRealKg } }),
+    onSuccess: (ordem) => atualizarOrdemNoCache(queryClient, ordem),
+  })
+}
+
 export function useInteligencia() {
   return useQuery({
     queryKey: ['inteligencia'],

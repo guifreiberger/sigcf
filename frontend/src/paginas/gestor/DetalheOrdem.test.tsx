@@ -79,17 +79,15 @@ describe('DetalheOrdem', () => {
     expect(corpoEnviado(fetchFalso, 'PATCH /ordens/10/peso')).toEqual({ pesoRealKg: 1230.5 })
   })
 
-  it('mostra o tempo e a distância da coleta concluída', async () => {
+  it('mostra o peso já registrado, com a opção de corrigir', async () => {
     apiFalsa({
-      'GET /ordens/10': {
-        corpo: ordem({ status: 'CONCLUIDA', transicoesPermitidas: [], pesoRealKg: 900, duracaoSegundos: 2700, distanciaMetros: 12500 }),
-      },
+      'GET /ordens/10': { corpo: ordem({ status: 'CONCLUIDA', transicoesPermitidas: [], pesoRealKg: 900 }) },
     })
     abrir()
 
-    expect(await screen.findByText('45 min')).toBeInTheDocument()
-    expect(screen.getByText('12,5 km')).toBeInTheDocument()
-    expect(screen.getByText('900 kg')).toBeInTheDocument()
+    expect(await screen.findByText('900 kg')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Corrigir' }))
+    expect(screen.getByLabelText('Peso da balança (kg)')).toHaveValue(900)
   })
 
   it('identifica as edições no histórico', async () => {

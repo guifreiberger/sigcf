@@ -13,7 +13,10 @@ import { Carregando, MensagemErro, Vazio } from '../../componentes/Estados.tsx'
 export interface CampoCadastro {
   nome: string
   rotulo: string
-  tipo?: 'text' | 'email' | 'password' | 'tel' | 'number'
+  tipo?: 'text' | 'email' | 'password' | 'tel' | 'number' | 'select'
+  // Para o tipo select: as opções, guardadas como id numérico, e o texto da opção vazia.
+  opcoes?: { valor: number; rotulo: string }[]
+  rotuloVazio?: string
   obrigatorio?: boolean
   maxLength?: number
   placeholder?: string
@@ -172,6 +175,8 @@ function FormularioCadastro({ recurso, campos, item, aoConcluir }: PropsFormular
         if (valor) dados[campo.nome] = valor
       } else if (campo.tipo === 'number') {
         dados[campo.nome] = Number(valor)
+      } else if (campo.tipo === 'select') {
+        dados[campo.nome] = valor === '' ? null : Number(valor)
       } else {
         dados[campo.nome] = valor === '' && !campo.obrigatorio ? null : valor
       }
@@ -189,18 +194,33 @@ function FormularioCadastro({ recurso, campos, item, aoConcluir }: PropsFormular
               {senhaNaEdicao ? `Nova ${campo.rotulo.toLowerCase()} (opcional)` : campo.rotulo}
               {!campo.obrigatorio && !senhaNaEdicao && <small className="texto-suave"> (opcional)</small>}
             </span>
-            <input
-              type={campo.tipo ?? 'text'}
-              value={valores[campo.nome]}
-              onChange={(e) => setValores((v) => ({ ...v, [campo.nome]: e.target.value }))}
-              required={campo.obrigatorio && !senhaNaEdicao}
-              maxLength={campo.maxLength}
-              minLength={campo.tipo === 'password' ? 6 : undefined}
-              placeholder={campo.placeholder}
-              step={campo.step}
-              min={campo.tipo === 'number' ? 0 : undefined}
-              autoComplete={campo.tipo === 'password' ? 'new-password' : 'off'}
-            />
+            {campo.tipo === 'select' ? (
+              <select
+                value={valores[campo.nome]}
+                onChange={(e) => setValores((v) => ({ ...v, [campo.nome]: e.target.value }))}
+                required={campo.obrigatorio}
+              >
+                <option value="">{campo.rotuloVazio ?? 'Selecione…'}</option>
+                {campo.opcoes?.map((opcao) => (
+                  <option key={opcao.valor} value={opcao.valor}>
+                    {opcao.rotulo}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type={campo.tipo ?? 'text'}
+                value={valores[campo.nome]}
+                onChange={(e) => setValores((v) => ({ ...v, [campo.nome]: e.target.value }))}
+                required={campo.obrigatorio && !senhaNaEdicao}
+                maxLength={campo.maxLength}
+                minLength={campo.tipo === 'password' ? 6 : undefined}
+                placeholder={campo.placeholder}
+                step={campo.step}
+                min={campo.tipo === 'number' ? 0 : undefined}
+                autoComplete={campo.tipo === 'password' ? 'new-password' : 'off'}
+              />
+            )}
           </label>
         )
       })}

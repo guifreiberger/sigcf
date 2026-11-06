@@ -27,6 +27,8 @@ export interface Motorista {
   perfil: Perfil
   telefone: string | null
   cnh: string | null
+  // Caminhão que vem preenchido ao criar uma ordem para o motorista (RF14).
+  veiculoPadraoId: number | null
   ativo: boolean
 }
 
@@ -73,6 +75,11 @@ export interface Ordem {
   enderecoColeta: string
   dataColeta: string
   pesoEstimadoKg: number | null
+  // Peso medido na balança depois da coleta, registrado pelo gestor (RF08).
+  pesoRealKg: number | null
+  // Gravados quando a coleta termina, a partir do trajeto e do histórico.
+  distanciaMetros: number | null
+  duracaoSegundos: number | null
   status: StatusOrdem
   observacao: string | null
   createdAt: string

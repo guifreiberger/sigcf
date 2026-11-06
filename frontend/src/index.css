@@ -1441,6 +1441,42 @@ svg.lucide {
   flex-basis: 100%;
 }
 
+/* Grupo de campos que pode ser bloqueado inteiro (ordem em andamento só edita observações). */
+.formulario__grupo {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.campo-com-dica {
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+}
+
+.campo-com-dica small {
+  font-size: 0.8rem;
+}
+
+.peso-balanca {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.peso-balanca--formulario {
+  display: grid;
+  justify-items: start;
+}
+
+.linha-tempo__motivo--edicao {
+  font-style: normal;
+}
+
 .opcoes {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

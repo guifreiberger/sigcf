@@ -1,7 +1,14 @@
+import { useCadastro } from '../../api/consultas.ts'
 import { formatarKg, formatarPlaca, formatarTelefone } from '../../util/formatos.ts'
 import { PaginaCadastro } from './PaginaCadastro.tsx'
 
 export function Motoristas() {
+  const veiculos = useCadastro('veiculos', true)
+  const placaDe = (id: number | null) => {
+    const veiculo = veiculos.data?.find((v) => v.id === id)
+    return veiculo ? formatarPlaca(veiculo.placa) : '—'
+  }
+
   return (
     <PaginaCadastro
       recurso="motoristas"
@@ -13,6 +20,7 @@ export function Motoristas() {
         { titulo: 'E-mail', valor: (m) => m.email },
         { titulo: 'Telefone', valor: (m) => formatarTelefone(m.telefone) },
         { titulo: 'CNH', valor: (m) => m.cnh ?? '—' },
+        { titulo: 'Caminhão padrão', valor: (m) => placaDe(m.veiculoPadraoId) },
       ]}
       campos={[
         { nome: 'nome', rotulo: 'Nome', obrigatorio: true, maxLength: 120 },
@@ -20,6 +28,13 @@ export function Motoristas() {
         { nome: 'senha', rotulo: 'Senha', tipo: 'password', obrigatorio: true, maxLength: 72 },
         { nome: 'telefone', rotulo: 'Telefone', tipo: 'tel', obrigatorio: true, placeholder: '(47) 99999-9999' },
         { nome: 'cnh', rotulo: 'CNH', placeholder: '11 dígitos' },
+        {
+          nome: 'veiculoPadraoId',
+          rotulo: 'Caminhão padrão',
+          tipo: 'select',
+          rotuloVazio: 'Nenhum',
+          opcoes: (veiculos.data ?? []).map((v) => ({ valor: v.id, rotulo: `${formatarPlaca(v.placa)} — ${v.modelo}` })),
+        },
       ]}
     />
   )
