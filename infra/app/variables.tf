@@ -41,6 +41,13 @@ variable "vapid_contato" {
   default     = ""
 }
 
+variable "firebase_credenciais" {
+  description = "Chave da conta de serviço do Firebase, em base64, para os avisos no app Android. Vazia desliga esses avisos."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "producao_sempre_ligada" {
   description = "Mantém a produção com uma réplica sempre ativa e o teste de disponibilidade ligado. Desligada, ela dorme sem acessos e acorda no primeiro, para economizar crédito fora dos períodos de avaliação."
   type        = bool

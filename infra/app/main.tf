@@ -18,6 +18,7 @@ locals {
   sempre_ligada = local.producao && var.producao_sempre_ligada
   nome          = local.producao ? "sigcf" : "sigcf-homologacao"
   push          = var.vapid_chave_publica != "" && var.vapid_chave_privada != ""
+  push_app      = var.firebase_credenciais != ""
 }
 
 resource "random_password" "jwt" {
@@ -56,6 +57,14 @@ resource "azurerm_container_app" "sigcf" {
     content {
       name  = "vapid-chave-privada"
       value = var.vapid_chave_privada
+    }
+  }
+
+  dynamic "secret" {
+    for_each = local.push_app ? [1] : []
+    content {
+      name  = "firebase-credenciais"
+      value = var.firebase_credenciais
     }
   }
 
@@ -155,6 +164,14 @@ resource "azurerm_container_app" "sigcf" {
         content {
           name  = "VAPID_SUBJECT"
           value = var.vapid_contato
+        }
+      }
+      # Avisos ao app Android (Firebase Cloud Messaging).
+      dynamic "env" {
+        for_each = local.push_app ? [1] : []
+        content {
+          name        = "FIREBASE_CREDENCIAIS_BASE64"
+          secret_name = "firebase-credenciais"
         }
       }
 
