@@ -49,6 +49,7 @@ O motorista pode usar o SIGCF de dois jeitos. No **app Android**, o trajeto cont
 | Medida | Regra |
 |---|---|
 | Pontos confiáveis | Leituras com precisão de até **100 m**. Piores que isso costumam vir da antena de celular ou do Wi-Fi, não do GPS, e são descartadas do mapa e da distância |
+| Saltos do GPS | Leitura que exigiria mais de **120 km/h** a partir da anterior é descartada do mapa e da distância, a não ser que as três seguintes confirmem a nova posição. Num teste de campo em 06/11/2026, uma leitura com precisão de 22 m caiu a 900 m do caminho (266 km/h para ir e 295 km/h para voltar) e somava 1,7 km que o carro não andou |
 | Distância percorrida | Soma dos trechos entre pontos consecutivos pela [fórmula de haversine](https://en.wikipedia.org/wiki/Haversine_formula) (distância sobre a superfície da Terra, raio de 6.371 km). Um trecho só conta quando o deslocamento supera **15 m** e a precisão da própria leitura; isso elimina a oscilação do GPS com o caminhão parado no cliente |
 | Início da corrida | Momento em que o motorista iniciou a coleta, pelo histórico de status |
 | Fim da corrida | Momento em que a coleta saiu de "em andamento" (concluída, falha ou cancelada) |
