@@ -984,6 +984,58 @@ describe('API do SIGCF (e2e)', () => {
     });
   });
 
+  describe('RF09 e RF15 — dashboard e relatório de coletas', () => {
+    const periodo = () => `de=${somarDias(hoje(), -30)}&ate=${hoje()}`;
+
+    it('resume as coletas do período no dashboard do gestor', async () => {
+      const res = await api()
+        .get(`/api/relatorios/dashboard?${periodo()}`)
+        .set(como('gestor'))
+        .expect(200);
+
+      expect(res.body.agrupamento).toBe('dia');
+      expect(res.body.totais.concluidas).toBeGreaterThan(0);
+      expect(res.body.totais.pesoKg).toBeGreaterThanOrEqual(1230.5);
+      expect(
+        res.body.motoristas.map((m: { motorista: string }) => m.motorista),
+      ).toContain('João');
+    });
+
+    it('lista no relatório o peso da balança, a distância e o tempo de cada coleta', async () => {
+      const res = await api()
+        .get(`/api/relatorios/coletas?${periodo()}&status=CONCLUIDA`)
+        .set(como('gestor'))
+        .expect(200);
+
+      expect(
+        res.body.every((l: { status: string }) => l.status === 'CONCLUIDA'),
+      ).toBe(true);
+      expect(res.body).toContainEqual(
+        expect.objectContaining({
+          pesoRealKg: 1230.5,
+          motorista: 'João',
+          placa: 'AAA1111',
+        }),
+      );
+      expect(res.body).toContainEqual(
+        expect.objectContaining({ distanciaMetros: 445 }),
+      );
+    });
+
+    it('recusa período inválido e é restrito ao gestor', async () => {
+      await api()
+        .get(
+          `/api/relatorios/coletas?de=${hoje()}&ate=${somarDias(hoje(), -1)}`,
+        )
+        .set(como('gestor'))
+        .expect(400);
+      await api()
+        .get(`/api/relatorios/dashboard?${periodo()}`)
+        .set(como('joao'))
+        .expect(403);
+    });
+  });
+
   describe('RF12 — coleta disponível, quem pega?', () => {
     let ordem: number;
     const aparelhos = {
