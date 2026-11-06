@@ -12,7 +12,7 @@ Base: `http://localhost:3000/api`. Exceto `POST /auth/login` e `GET /health`, to
 
 ## Cadastros (RF01)
 
-Mesmo formato para `/motoristas`, `/veiculos` e `/clientes`, todos restritos ao **gestor**. A única exceção é `GET /veiculos`, que o motorista também acessa para escolher o veículo ao aceitar uma coleta disponível (RF12).
+Mesmo formato para `/motoristas`, `/veiculos` e `/clientes`, todos restritos ao **gestor**. O motorista tem o campo opcional `veiculoPadraoId`, o caminhão que vem preenchido ao criar uma ordem para ele (precisa estar ativo; nulo tira o padrão). A única exceção é `GET /veiculos`, que o motorista também acessa para escolher o veículo ao aceitar uma coleta disponível (RF12).
 
 | Método | Rota | Descrição |
 |---|---|---|
@@ -28,7 +28,7 @@ Campos de criação:
 - **veículo:** `placa` (AAA1234 ou Mercosul AAA1A23; hífen e minúsculas são normalizados), `modelo`, `capacidadeKg`
 - **cliente:** `nome`, `endereco`, `telefone` (opcional)
 
-## Ordens de coleta (RF02 a RF04, RF12)
+## Ordens de coleta (RF02 a RF04, RF08, RF12, RF13)
 
 | Método | Rota | Perfil | Descrição |
 |---|---|---|---|
@@ -39,6 +39,8 @@ Campos de criação:
 | GET | `/ordens/disponiveis` | motorista | Coletas disponíveis de hoje em diante, da mais próxima para a mais distante |
 | POST | `/ordens/:id/aceitar` | motorista | Aceita a coleta disponível: `{ veiculoId }`. Responde 200 com a ordem, agora `AGUARDANDO` e do motorista; 409 se outro motorista aceitou antes ou se ela foi cancelada; 422 se o veículo estiver inativo |
 | GET | `/ordens/:id` | ambos | Detalhe com histórico; motorista só acessa as próprias |
+| PATCH | `/ordens/:id` | gestor | Edita a ordem: qualquer campo de criação, sendo `motoristaId` e `veiculoId` nulos para disponibilizar a coleta. Antes de iniciar, tudo pode mudar; em andamento, só `observacao` (409 nos demais); finalizada, nada (409). A ordem precisa ficar com motorista e caminhão juntos, ou sem os dois (400). A edição fica no histórico, sem mudar o status, e a troca de motorista avisa os dois |
+| PATCH | `/ordens/:id/peso` | gestor | Registra o peso da balança: `{ pesoRealKg }`. Só em coleta concluída (409 nas demais) |
 | PATCH | `/ordens/:id/status` | ambos | Altera o status: `{ status, motivo?, localizacao? }` |
 
 Toda ordem retornada traz `transicoesPermitidas`: os status para os quais o usuário atual pode movê-la. O frontend usa essa lista para exibir os botões, mantendo a regra de negócio só no backend.
@@ -58,6 +60,15 @@ O campo opcional `localizacao` tem o formato `{ latitude, longitude, precisaoMet
 | GET | `/rastreamento/ordens/:id` | gestor | Trajeto da ordem: `pontos` confiáveis em ordem cronológica, `inicio`, `fim`, `duracaoSegundos`, `distanciaMetros` e `ultimaPosicao` |
 
 Os pontos só são aceitos enquanto o motorista tem coleta em andamento e são gravados em cada uma delas; sem nenhuma, a resposta é 409. Leituras com precisão pior que 100 m ficam fora do mapa e da distância. As regras de cálculo e as decisões de privacidade estão em [`rastreamento.md`](rastreamento.md).
+
+## Dashboard e relatório (RF09 e RF15)
+
+| Método | Rota | Perfil | Descrição |
+|---|---|---|---|
+| GET | `/relatorios/dashboard?de=&ate=` | gestor | Indicadores do período: `totais` (coletas, concluídas, falhas, canceladas, peso da balança, concluídas sem pesagem, distância e tempo médio), `pesoPorPeriodo` (por dia até 62 dias, por mês acima), `clientes` (os 10 que mais pedem) e `motoristas` |
+| GET | `/relatorios/coletas?de=&ate=&motoristaId=&clienteId=&status=` | gestor | Uma linha por coleta do período, com cliente, endereço, motorista, placa, status, pesos, distância, duração, início, fim e motivo de falha ou cancelamento |
+
+O período é obrigatório, com o fim igual ou posterior ao início e no máximo um ano (400 fora disso). O peso é sempre o da balança. A distância e a duração de cada coleta são gravadas na ordem quando ela sai de "em andamento" (`distanciaMetros` e `duracaoSegundos`), e o relatório e o dashboard leem esses valores em vez de recalcular o trajeto.
 
 ## Inteligência
 

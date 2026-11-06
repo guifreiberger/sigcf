@@ -6,6 +6,7 @@ erDiagram
     USUARIO ||--o{ ORDEM_COLETA : "cria"
     CLIENTE ||--o{ ORDEM_COLETA : "solicita"
     VEICULO ||--o{ ORDEM_COLETA : "atende"
+    VEICULO |o--o{ USUARIO : "é o padrão de"
     ORDEM_COLETA ||--o{ HISTORICO_STATUS : "registra"
     USUARIO ||--o{ HISTORICO_STATUS : "efetua"
     USUARIO ||--o{ INSCRICAO_PUSH : "recebe avisos em"
@@ -20,6 +21,7 @@ erDiagram
         enum perfil "GESTOR | MOTORISTA"
         varchar telefone "obrigatorio p/ motorista"
         varchar cnh "opcional"
+        int veiculo_padrao_id FK "opcional"
         boolean ativo
         datetime created_at
         datetime updated_at
@@ -54,6 +56,9 @@ erDiagram
         varchar endereco_coleta
         date data_coleta
         decimal peso_estimado_kg "opcional"
+        decimal peso_real_kg "balança, após a coleta"
+        int distancia_metros "gravada ao finalizar"
+        int duracao_segundos "gravada ao finalizar"
         enum status "DISPONIVEL | AGUARDANDO | EM_ANDAMENTO | CONCLUIDA | FALHA | CANCELADA"
         text observacao
         datetime created_at
@@ -114,13 +119,19 @@ erDiagram
 
 **Localização nas ações do motorista.** Quando o motorista inicia, conclui ou reporta falha em uma coleta, o registro de histórico guarda a latitude, a longitude e a precisão informada pelo GPS do celular, somente para ações do motorista. Se a permissão for negada ou o GPS não responder, a ação é registrada sem coordenadas. As colunas usam `DECIMAL(9,6)`, precisão de cerca de 11 cm, suficiente para identificar o local do atendimento.
 
-**Pontos do trajeto (RF11).** Enquanto a coleta está em andamento, o celular do motorista envia leituras do GPS, gravadas em `ponto_trajeto` com o horário em que foram feitas no aparelho (`registrado_em`, com milissegundos), e não o do envio, para que lotes atrasados por falta de sinal entrem na ordem certa. Fora de uma coleta em andamento, o servidor recusa os pontos, pelo princípio da necessidade da LGPD. A duração e a distância da corrida não são colunas da ordem: são calculadas a partir do histórico de status e dos pontos, evitando dados duplicados que poderiam divergir. O índice `(ordem_id, registrado_em)` atende às duas consultas do recurso: o trajeto de uma ordem em ordem cronológica e a última posição de cada coleta em andamento. A exclusão de uma ordem apaga seus pontos (`ON DELETE CASCADE`). Detalhes em [`rastreamento.md`](rastreamento.md).
+**Pontos do trajeto (RF11).** Enquanto a coleta está em andamento, o celular do motorista envia leituras do GPS, gravadas em `ponto_trajeto` com o horário em que foram feitas no aparelho (`registrado_em`, com milissegundos), e não o do envio, para que lotes atrasados por falta de sinal entrem na ordem certa. Fora de uma coleta em andamento, o servidor recusa os pontos, pelo princípio da necessidade da LGPD. A tela do trajeto calcula a duração e a distância a partir dos pontos e do histórico. Quando a coleta sai de "em andamento", os dois valores também são gravados na ordem (`distancia_metros` e `duracao_segundos`): os pontos não mudam mais depois disso, e o dashboard e o relatório de períodos longos não precisam recalcular milhares de pontos a cada consulta. A migration que criou as colunas calculou os valores das coletas que já tinham terminado. O índice `(ordem_id, registrado_em)` atende às duas consultas do recurso: o trajeto de uma ordem em ordem cronológica e a última posição de cada coleta em andamento. A exclusão de uma ordem apaga seus pontos (`ON DELETE CASCADE`). Detalhes em [`rastreamento.md`](rastreamento.md).
 
 **Inscrições de notificação.** Cada aparelho que ativa os avisos gera um endereço único no serviço de push do navegador (`endpoint`) e as chaves públicas usadas para criptografar a mensagem (`p256dh` e `auth`). Um usuário pode ter vários aparelhos, mas cada endereço pertence a um único usuário. A exclusão do usuário apaga suas inscrições (`ON DELETE CASCADE`).
 
 **Aparelhos do app Android.** No app, os avisos vão pelo Firebase, que identifica cada aparelho por um token. A tabela `aparelho_app` é separada de `inscricao_push` porque os dois canais guardam dados diferentes: o token não tem chaves de criptografia. As regras são as mesmas: um token pertence a um único usuário, passa para quem entrar depois no mesmo aparelho e é apagado junto com o usuário.
 
 **Motorista e veículo opcionais na ordem (RF12).** Uma coleta disponível ainda não tem motorista nem veículo: os dois são definidos juntos, por quem a aceita. Por isso `motorista_id` e `veiculo_id` aceitam nulo, e a regra de que ou os dois estão preenchidos ou nenhum está fica na camada de serviço. Uma coleta só entra em andamento depois de aceita, então o rastreamento (RF11) sempre encontra motorista e veículo.
+
+**Peso estimado e peso da balança.** O peso estimado é o que o cliente informa ao pedir, e pode faltar. O peso da balança (`peso_real_kg`) é medido depois da coleta e registrado pelo gestor; é ele que entra no dashboard e no relatório.
+
+**Caminhão padrão do motorista.** `usuario.veiculo_padrao_id` guarda o caminhão que o motorista costuma usar, só para pré-preencher a ordem. Se o caminhão for apagado, o campo volta a ser nulo (`ON DELETE SET NULL`), e cada ordem continua com o seu próprio `veiculo_id`.
+
+**Edições no histórico.** Uma edição da ordem ou o registro do peso gravam uma linha em `historico_status` com o status anterior igual ao novo e a descrição no motivo (por exemplo, "Ordem editada: data e motorista"). Assim, a trilha de auditoria cobre também as correções, e o cálculo da corrida ignora essas linhas.
 
 **Índice composto `(motorista_id, data_coleta)`.** A consulta mais frequente do sistema é "coletas do motorista X no dia Y" (RF03). O índice mantém essa consulta dentro do requisito de 300 ms conforme o volume cresce.
 
