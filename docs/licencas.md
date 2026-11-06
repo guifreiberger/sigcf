@@ -35,8 +35,8 @@ Todas as dependências usadas em produção têm licenças que permitem o uso em
 | React Leaflet | 5.0 | Hippocratic-2.1 | Componentes React para o Leaflet |
 | Lucide | 1.x | ISC | Ícones |
 | Inter (`@fontsource-variable/inter`) | 5.3 | SIL OFL 1.1 | Fonte |
-| Capacitor (`@capacitor/core`, `android`, `push-notifications`, `local-notifications`) | 8 | MIT | App Android do motorista e avisos pelo Firebase |
-| `@capacitor-community/background-geolocation` | 1.3 | MIT | GPS em segundo plano no app Android |
+| Capacitor (`@capacitor/core`, `android`, `push-notifications`) | 8 | MIT | App Android do motorista e avisos pelo Firebase |
+| Google Play Services Location (`play-services-location`) | 21.0 | [Termos do Android SDK](https://developer.android.com/studio/terms) (gratuita, código fechado) | GPS do serviço que grava o trajeto no app Android |
 
 ### Observações
 
