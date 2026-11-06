@@ -689,8 +689,9 @@ describe('API do SIGCF (e2e)', () => {
       ordem = res.body.id;
     });
 
-    it('só aceita pontos do motorista com coleta em andamento', async () => {
-      await enviarPontos('joao', [leitura(0, 0)]).expect(409);
+    it('só aceita pontos de quando o motorista estava em coleta', async () => {
+      // Daqui a 10 minutos: longe da coleta que o João concluiu nos testes anteriores.
+      await enviarPontos('joao', [leitura(0, 600)]).expect(409);
       await enviarPontos('gestor', [leitura(0, 0)]).expect(403);
     });
 
@@ -746,7 +747,7 @@ describe('API do SIGCF (e2e)', () => {
     it('salva o trajeto e o tempo da corrida ao concluir', async () => {
       await enviarPontos('joao', [leitura(4, 45)]).expect(204);
       await alterarStatus('joao', ordem, { status: 'CONCLUIDA' }).expect(200);
-      await enviarPontos('joao', [leitura(9, 60)]).expect(409);
+      await enviarPontos('joao', [leitura(9, 180)]).expect(409);
 
       const res = await api()
         .get(`/api/rastreamento/ordens/${ordem}`)

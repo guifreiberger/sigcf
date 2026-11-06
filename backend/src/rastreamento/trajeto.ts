@@ -84,6 +84,39 @@ export function periodoDaCorrida(historico: PassoDoHistorico[]) {
   return { inicio, fim };
 }
 
+export interface Corrida {
+  ordemId: number;
+  inicio: Date;
+  // Nula enquanto a coleta está em andamento.
+  fim: Date | null;
+}
+
+// O relógio do celular e o do servidor diferem alguns segundos, e a primeira leitura pode ser
+// de pouco antes do toque em "Iniciar".
+export const TOLERANCIA_DA_CORRIDA_MS = 60_000;
+
+// A leitura pertence à corrida em andamento no momento em que foi feita, e não à que estiver em
+// andamento quando ela chega ao servidor: sem internet, o celular guarda as leituras e só as
+// envia depois, às vezes com a coleta já concluída e outra iniciada.
+export function corridasDaLeitura(
+  registradoEm: Date,
+  corridas: Corrida[],
+): number[] {
+  const momento = registradoEm.getTime();
+  const fimDe = (c: Corrida) => c.fim?.getTime() ?? Infinity;
+  const dentro = corridas.filter(
+    (c) => c.inicio.getTime() <= momento && momento <= fimDe(c),
+  );
+  if (dentro.length) return dentro.map((c) => c.ordemId);
+
+  const afastamento = (c: Corrida) =>
+    Math.max(c.inicio.getTime() - momento, momento - fimDe(c));
+  const proxima = corridas
+    .filter((c) => afastamento(c) <= TOLERANCIA_DA_CORRIDA_MS)
+    .sort((a, b) => afastamento(a) - afastamento(b))[0];
+  return proxima ? [proxima.ordemId] : [];
+}
+
 export function duracaoEmSegundos(
   inicio: Date | null,
   fim: Date | null,

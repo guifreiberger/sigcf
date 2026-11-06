@@ -1,5 +1,11 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { IsNull, LessThanOrEqual, type Repository } from 'typeorm';
+import {
+  In,
+  IsNull,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  type Repository,
+} from 'typeorm';
 import type { OrdemColeta } from '../ordens/ordem-coleta.entity.js';
 import { StatusOrdem } from '../ordens/status-ordem.enum.js';
 import { Perfil } from '../usuarios/perfil.enum.js';
@@ -32,7 +38,7 @@ const historicoIniciado = [
 
 describe('RastreamentoService', () => {
   const pontos = { insert: vi.fn(), find: vi.fn(), findOne: vi.fn() };
-  const ordens = { find: vi.fn(), findOne: vi.fn() };
+  const ordens = { find: vi.fn(), findOne: vi.fn(), update: vi.fn() };
   const service = new RastreamentoService(
     pontos as unknown as Repository<PontoTrajeto>,
     ordens as unknown as Repository<OrdemColeta>,
@@ -63,19 +69,54 @@ describe('RastreamentoService', () => {
       ],
     };
 
-    it('só procura as coletas em andamento do próprio motorista', async () => {
-      ordens.find.mockResolvedValue([{ id: 10 }]);
+    // Coleta do motorista com o histórico de quando entrou e saiu de "em andamento".
+    const coleta = (id: number, inicio: string, fim?: string) => ({
+      id,
+      historico: [
+        historicoIniciado[0],
+        { ...historicoIniciado[1], createdAt: as(inicio) },
+        ...(fim
+          ? [
+              {
+                statusAnterior: StatusOrdem.EM_ANDAMENTO,
+                statusNovo: StatusOrdem.CONCLUIDA,
+                createdAt: as(fim),
+              },
+            ]
+          : []),
+      ],
+    });
+
+    const ordensGravadas = () =>
+      (pontos.insert.mock.calls[0][0] as { ordemId: number }[]).map(
+        (p) => p.ordemId,
+      );
+
+    it('procura as coletas do motorista em andamento ou terminadas desde a leitura mais antiga', async () => {
+      ordens.find.mockResolvedValue([coleta(10, '15:00:00')]);
 
       await service.registrar(joao, lote);
 
       expect(ordens.find).toHaveBeenCalledWith({
-        select: { id: true },
-        where: { motoristaId: 7, status: StatusOrdem.EM_ANDAMENTO },
+        where: [
+          { motoristaId: 7, status: StatusOrdem.EM_ANDAMENTO },
+          {
+            motoristaId: 7,
+            status: In([
+              StatusOrdem.CONCLUIDA,
+              StatusOrdem.FALHA,
+              StatusOrdem.CANCELADA,
+            ]),
+            updatedAt: MoreThanOrEqual(new Date('2026-11-04T15:09:00.250Z')),
+          },
+        ],
+        relations: { historico: true },
+        order: { historico: { id: 'ASC' } },
       });
     });
 
     it('grava as leituras com o horário do celular e a precisão arredondada', async () => {
-      ordens.find.mockResolvedValue([{ id: 10 }]);
+      ordens.find.mockResolvedValue([coleta(10, '15:00:00')]);
 
       await service.registrar(joao, lote);
 
@@ -95,19 +136,96 @@ describe('RastreamentoService', () => {
           registradoEm: new Date('2026-11-04T15:10:15.000Z'),
         },
       ]);
+      expect(ordens.update).not.toHaveBeenCalled();
     });
 
-    it('atribui o trajeto a cada coleta que estiver em andamento', async () => {
-      ordens.find.mockResolvedValue([{ id: 10 }, { id: 11 }]);
+    it('atribui o trajeto a cada coleta que estava em andamento na hora da leitura', async () => {
+      ordens.find.mockResolvedValue([
+        coleta(10, '15:00:00'),
+        coleta(11, '15:05:00'),
+      ]);
 
       await service.registrar(joao, lote);
 
-      const gravados = pontos.insert.mock.calls[0][0] as { ordemId: number }[];
-      expect(gravados.map((p) => p.ordemId)).toEqual([10, 10, 11, 11]);
+      expect(ordensGravadas()).toEqual([10, 11, 10, 11]);
+    });
+
+    // Caso real: sem internet, o celular guardou as leituras de uma coleta e só as enviou
+    // depois de concluí-la e iniciar outra; antes, todas iam para a coleta nova.
+    it('leva a leitura que chegou atrasada para a coleta em que foi feita, e atualiza a distância dela', async () => {
+      ordens.find.mockResolvedValue([
+        coleta(14, '15:00:00', '15:12:00'),
+        coleta(16, '15:12:02'),
+      ]);
+      pontos.find.mockResolvedValue([
+        leitura(-26.48, '15:01:00'),
+        leitura(-26.47, '15:10:00'),
+      ]);
+
+      await service.registrar(joao, {
+        pontos: [
+          {
+            latitude: -26.47,
+            longitude: -49.07,
+            registradoEm: '2026-11-04T15:10:00Z',
+          },
+          {
+            latitude: -26.46,
+            longitude: -49.07,
+            registradoEm: '2026-11-04T15:20:00Z',
+          },
+        ],
+      });
+
+      expect(ordensGravadas()).toEqual([14, 16]);
+      expect(pontos.find).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { ordemId: 14 } }),
+      );
+      expect(ordens.update).toHaveBeenCalledOnce();
+      expect(ordens.update).toHaveBeenCalledWith(14, { distanciaMetros: 1112 });
+    });
+
+    it('descarta as leituras de fora de qualquer coleta', async () => {
+      ordens.find.mockResolvedValue([coleta(10, '15:10:10')]);
+
+      await service.registrar(joao, {
+        pontos: [
+          {
+            latitude: -26.48,
+            longitude: -49.07,
+            registradoEm: '2026-11-04T14:00:00Z',
+          },
+          {
+            latitude: -26.47,
+            longitude: -49.07,
+            registradoEm: '2026-11-04T15:11:00Z',
+          },
+        ],
+      });
+
+      expect(pontos.insert).toHaveBeenCalledWith([
+        expect.objectContaining({ ordemId: 10, latitude: -26.47 }),
+      ]);
+    });
+
+    it('com coleta em andamento, aceita sem gravar um lote só de leituras antigas', async () => {
+      ordens.find.mockResolvedValue([coleta(10, '16:00:00')]);
+
+      await expect(service.registrar(joao, lote)).resolves.toBeUndefined();
+      expect(pontos.insert).not.toHaveBeenCalled();
     });
 
     it('recusa leituras quando não há coleta em andamento, para o celular parar de enviar', async () => {
       ordens.find.mockResolvedValue([]);
+
+      await expect(service.registrar(joao, lote)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(pontos.insert).not.toHaveBeenCalled();
+    });
+
+    it('recusa também quando a única coleta terminou antes das leituras', async () => {
+      ordens.find.mockResolvedValue([coleta(10, '14:00:00', '14:30:00')]);
 
       await expect(service.registrar(joao, lote)).rejects.toThrow(
         ConflictException,

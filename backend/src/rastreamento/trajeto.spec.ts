@@ -1,5 +1,6 @@
 import { StatusOrdem } from '../ordens/status-ordem.enum.js';
 import {
+  corridasDaLeitura,
   distanciaEntre,
   distanciaPercorrida,
   duracaoEmSegundos,
@@ -173,6 +174,51 @@ describe('trajeto da coleta (RF11)', () => {
       duracaoSegundos: 300,
       ultimaPosicao: pontos[0],
       pontos: [pontos[1], pontos[2], pontos[0]],
+    });
+  });
+
+  describe('corridasDaLeitura', () => {
+    const corrida = (ordemId: number, inicio: number, fim: number | null) => ({
+      ordemId,
+      inicio: quando(inicio),
+      fim: fim === null ? null : quando(fim),
+    });
+    const aos = (minuto: number, segundo = 0) =>
+      new Date(Date.UTC(2026, 10, 4, 12, minuto, segundo));
+
+    it('leva a leitura para a corrida em que ela foi feita, já concluída ou não', () => {
+      const corridas = [corrida(14, 15, 24), corrida(16, 25, null)];
+
+      expect(corridasDaLeitura(aos(20), corridas)).toEqual([14]);
+      expect(corridasDaLeitura(aos(30), corridas)).toEqual([16]);
+    });
+
+    it('aceita a leitura feita logo antes do início ou logo depois do fim, pela diferença dos relógios', () => {
+      const corridas = [corrida(14, 15, 24)];
+
+      expect(corridasDaLeitura(aos(14, 30), corridas)).toEqual([14]);
+      expect(corridasDaLeitura(aos(24, 40), corridas)).toEqual([14]);
+    });
+
+    it('descarta a leitura de fora de qualquer corrida', () => {
+      const corridas = [corrida(14, 15, 24)];
+
+      expect(corridasDaLeitura(aos(10), corridas)).toEqual([]);
+      expect(corridasDaLeitura(aos(30), corridas)).toEqual([]);
+      expect(corridasDaLeitura(aos(20), [])).toEqual([]);
+    });
+
+    it('entre duas corridas seguidas, fica com a mais próxima', () => {
+      const corridas = [corrida(14, 15, 24), corrida(16, 25, null)];
+
+      expect(corridasDaLeitura(aos(24, 10), corridas)).toEqual([14]);
+      expect(corridasDaLeitura(aos(24, 50), corridas)).toEqual([16]);
+    });
+
+    it('vale para todas as corridas em andamento ao mesmo tempo', () => {
+      const corridas = [corrida(10, 15, null), corrida(11, 18, null)];
+
+      expect(corridasDaLeitura(aos(20), corridas)).toEqual([10, 11]);
     });
   });
 });
