@@ -157,7 +157,7 @@ O relatório de cobertura fica em `coverage/lcov-report/index.html` de cada proj
 | [`docs/seguranca.md`](docs/seguranca.md) | Medidas de segurança organizadas pelo OWASP Top 10 e limitações conhecidas |
 | [`docs/rastreamento.md`](docs/rastreamento.md) | Trajeto da coleta: envio da posição, cálculo de distância e duração, privacidade e limitações |
 | [`docs/desempenho.md`](docs/desempenho.md) | Medição do requisito de 300 ms e teste de volume com 200 mil ordens |
-| [`docs/validacao/`](docs/validacao) | Roteiro de entrevista, questionário e protocolo de teste de usabilidade (SUS) |
+| [`docs/validacao/`](docs/validacao) | Relatório de validação com a Edepel, roteiro de entrevista, questionário e protocolo de teste de usabilidade (SUS) |
 | [`docs/licencas.md`](docs/licencas.md) | Licença do projeto e licenças dos componentes de terceiros |
 | [`docs/tcc/atualizacoes-proposta.tex`](docs/tcc/atualizacoes-proposta.tex) | Texto em LaTeX com RFs e RNFs atualizados para a proposta |
 
