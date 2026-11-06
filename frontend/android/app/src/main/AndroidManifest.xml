@@ -36,6 +36,12 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="coletas" />
 
+        <!-- Grava e envia o trajeto da coleta com a tela apagada (ADR 0010). -->
+        <service
+            android:name=".rastreamento.ServicoDeRastreamento"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -50,6 +56,13 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Trajeto da coleta: GPS "durante o uso do app", mantido por um serviço em primeiro plano. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- O plugin de notificações pede estas para agendar avisos, o que o SIGCF não faz. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
