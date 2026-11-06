@@ -48,11 +48,23 @@ interface Resposta {
 // da API do seu ambiente (homologação ou produção), definido ao gerar o app.
 const enderecoDaApi = () => import.meta.env.VITE_API_URL || '/api'
 
+// Sem tempo-limite, o HTTP nativo do Android espera para sempre por uma conexão que caiu, como
+// ao trocar do Wi-Fi para o 4G, e a fila do trajeto deixa de ser enviada até o app ser fechado.
+const TEMPO_CONEXAO_MS = 15_000
+const TEMPO_RESPOSTA_MS = 20_000
+
 // No app Android, as chamadas saem pelo HTTP nativo: depois de alguns minutos em segundo plano,
 // o Android limita a internet da WebView, e o trajeto precisa continuar sendo enviado.
 async function transportar(url: string, metodo: Metodo, headers: Record<string, string>, corpo: unknown) {
   if (ehAppNativo()) {
-    const { status, data } = await CapacitorHttp.request({ url, method: metodo, headers, data: corpo })
+    const { status, data } = await CapacitorHttp.request({
+      url,
+      method: metodo,
+      headers,
+      data: corpo,
+      connectTimeout: TEMPO_CONEXAO_MS,
+      readTimeout: TEMPO_RESPOSTA_MS,
+    })
     return {
       status,
       json: async () => (typeof data === 'string' ? JSON.parse(data || 'null') : data),
