@@ -22,6 +22,7 @@ Todas as dependências usadas em produção têm licenças que permitem o uso em
 | rxjs | 7.8 | Apache-2.0 | Dependência do NestJS |
 | reflect-metadata | 0.2 | Apache-2.0 | Metadados dos decorators |
 | web-push | 3.6 | MPL-2.0 | Envio das notificações push |
+| google-auth-library | 11.3 | Apache-2.0 | Autenticação no Firebase para os avisos no app Android |
 
 ### Frontend
 
@@ -34,6 +35,8 @@ Todas as dependências usadas em produção têm licenças que permitem o uso em
 | React Leaflet | 5.0 | Hippocratic-2.1 | Componentes React para o Leaflet |
 | Lucide | 1.x | ISC | Ícones |
 | Inter (`@fontsource-variable/inter`) | 5.3 | SIL OFL 1.1 | Fonte |
+| Capacitor (`@capacitor/core`, `android`, `push-notifications`, `local-notifications`) | 8 | MIT | App Android do motorista e avisos pelo Firebase |
+| `@capacitor-community/background-geolocation` | 1.3 | MIT | GPS em segundo plano no app Android |
 
 ### Observações
 
@@ -47,6 +50,8 @@ Todas as dependências usadas em produção têm licenças que permitem o uso em
 |---|---|---|
 | Mapas do [OpenStreetMap](https://www.openstreetmap.org/copyright) | Dados ODbL; tiles sob a [política de uso](https://operations.osmfoundation.org/policies/tiles/) da OSMF | Atribuição "© OpenStreetMap" exibida em todo mapa. Para uso intenso em produção, a recomendação é um provedor de tiles próprio ou contratado ([`rastreamento.md`](rastreamento.md)) |
 | Serviços de push dos navegadores (Google, Mozilla, Apple, Microsoft) | Termos de cada navegador | Usados por meio do padrão aberto Web Push, sem conta ou chave nesses serviços |
+| [Firebase Cloud Messaging](https://firebase.google.com/terms) | Termos do Firebase (plano gratuito) | Avisos ao app Android; o servidor se autentica com a conta de serviço do projeto, guardada como segredo |
+| Ícone da notificação do app (Material Icons, "location_on") | Apache-2.0 | Desenho vetorial em `frontend/android/app/src/main/res/drawable/ic_notificacao.xml` |
 | Imagem `node` | MIT (Node.js) | Base do container da API |
 | Imagem `nginx` | BSD-2-Clause | Base do container do frontend |
 | Imagem `mysql` | GPLv2 (MySQL Community Server) | Banco em servidor separado, acessado pela rede; o código do SIGCF não é ligado ao MySQL, o que não o torna obra derivada |

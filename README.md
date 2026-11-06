@@ -13,7 +13,7 @@ O SIGCF nasceu de uma dor real do mercado logístico: o caos operacional no cont
 A solução é uma aplicação web única e responsiva, que atende dois perfis distintos sobre a mesma API:
 
 1. **Painel do Gestor (desktop):** Interface para controle da frota, cadastro de entidades, emissão e acompanhamento de ordens de coleta.
-2. **Visão do Motorista (celular):** Interface enxuta, instalável como PWA, focada em consultar as coletas do dia e atualizar o status em campo.
+2. **Visão do Motorista (celular):** Interface enxuta, focada em consultar as coletas do dia e atualizar o status em campo. Funciona no navegador (instalável como PWA) e, no Android, como app, para o trajeto da coleta continuar sendo gravado com a tela apagada.
 
 ## Diferenciais
 
@@ -29,6 +29,7 @@ A solução é uma aplicação web única e responsiva, que atende dois perfis d
 |---|---|
 | Back-end | Node.js + NestJS + TypeORM |
 | Front-end | React (Vite) |
+| App Android | Capacitor (o mesmo front-end), com GPS em segundo plano e avisos pelo Firebase |
 | Banco de Dados | MySQL 8 |
 | Autenticação | JWT (stateless) |
 | Infraestrutura | Docker & Docker Compose |
@@ -120,6 +121,10 @@ Enquanto o túnel estiver ligado, o sistema fica acessível pela internet. Antes
 docker compose exec -e NODE_ENV=development backend node dist/database/seed.js --recriar
 ```
 
+### App Android do motorista
+
+O app é gerado a partir do mesmo front-end, com o Capacitor. Os passos, os pré-requisitos (Java 21 e Android SDK) e a instalação no celular estão em [`docs/deploy.md`](docs/deploy.md#app-android); o motivo da decisão, no [ADR 0009](docs/adr/0009-app-android-com-capacitor.md).
+
 ## Testes
 
 ```bash
@@ -152,7 +157,7 @@ O relatório de cobertura fica em `coverage/lcov-report/index.html` de cada proj
 | [`docs/seguranca.md`](docs/seguranca.md) | Medidas de segurança organizadas pelo OWASP Top 10 e limitações conhecidas |
 | [`docs/rastreamento.md`](docs/rastreamento.md) | Trajeto da coleta: envio da posição, cálculo de distância e duração, privacidade e limitações |
 | [`docs/desempenho.md`](docs/desempenho.md) | Medição do requisito de 300 ms e teste de volume com 200 mil ordens |
-| [`docs/validacao/`](docs/validacao) | Roteiro de entrevista, questionário e protocolo de teste de usabilidade (SUS) |
+| [`docs/validacao/`](docs/validacao) | Relatório de validação com a Edepel, roteiro de entrevista, questionário e protocolo de teste de usabilidade (SUS) |
 | [`docs/licencas.md`](docs/licencas.md) | Licença do projeto e licenças dos componentes de terceiros |
 | [`docs/tcc/atualizacoes-proposta.tex`](docs/tcc/atualizacoes-proposta.tex) | Texto em LaTeX com RFs e RNFs atualizados para a proposta |
 
@@ -160,7 +165,7 @@ O relatório de cobertura fica em `coverage/lcov-report/index.html` de cada proj
 
 Fazem parte da entrega: cadastro de veículos, motoristas e clientes; criação e delegação de ordens de coleta; visão do motorista com as coletas do dia; atualização de status com histórico rastreável; registro da localização do motorista no momento em que ele inicia, conclui ou reporta falha em uma coleta; acompanhamento da posição do motorista pelo gestor enquanto a coleta está em andamento, com o trajeto, a distância e a duração da corrida salvos ao final; e uma tela de inteligência que identifica o padrão de pedidos de cada cliente, prevê a próxima coleta, acompanha a tendência de peso e alerta sobre coletas esperadas que ainda não foram pedidas, calculada no próprio sistema, sem APIs externas de IA; avisos no celular do motorista, mesmo com o app fechado, quando ele recebe uma coleta nova ou tem uma coleta cancelada; e coletas disponíveis, publicadas sem motorista para o primeiro que aceitar, como o gestor faz hoje no grupo dos motoristas.
 
-Estão **fora do escopo** desta versão: rastreamento fora das coletas ou com o app fechado, roteirização automática, módulos financeiros ou fiscais (NF-e/CT-e), integração com ERPs de terceiros e aplicativo mobile nativo.
+Estão **fora do escopo** desta versão: rastreamento fora das coletas, roteirização automática, módulos financeiros ou fiscais (NF-e/CT-e), integração com ERPs de terceiros, app para iPhone e publicação nas lojas de aplicativos (o app Android é instalado por arquivo APK).
 
 ## Licença
 

@@ -18,11 +18,15 @@ import type { UsuarioAutenticado } from '../auth/usuario-autenticado.js';
 import { Cliente } from '../clientes/cliente.entity.js';
 import { hoje } from '../common/data.js';
 import {
+  avisoColetaAlterada,
   avisoColetaCancelada,
   avisoColetaDisponivel,
+  avisoColetaReatribuida,
   avisoNovaColeta,
 } from '../notificacoes/avisos.js';
 import { NotificacoesService } from '../notificacoes/notificacoes.service.js';
+import { PontoTrajeto } from '../rastreamento/ponto-trajeto.entity.js';
+import { resumirTrajeto } from '../rastreamento/trajeto.js';
 import { Perfil } from '../usuarios/perfil.enum.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
 import { Veiculo } from '../veiculos/veiculo.entity.js';
@@ -30,6 +34,8 @@ import {
   AceitarColetaDto,
   AlterarStatusDto,
   CriarOrdemDto,
+  EditarOrdemDto,
+  RegistrarPesoDto,
   FiltroOrdensDto,
 } from './dto/ordem.dto.js';
 import { HistoricoStatus } from './historico-status.entity.js';
@@ -46,6 +52,32 @@ const EXCECAO_POR_ERRO = {
   NAO_PERMITIDA: ForbiddenException,
   MOTIVO_OBRIGATORIO: BadRequestException,
 } as const;
+
+// Campos que a edição pode mudar, na ordem e com o nome usados no histórico.
+const ROTULO_DO_CAMPO = {
+  clienteId: 'cliente',
+  enderecoColeta: 'endereço',
+  dataColeta: 'data',
+  pesoEstimadoKg: 'peso estimado',
+  observacao: 'observações',
+  motoristaId: 'motorista',
+  veiculoId: 'caminhão',
+} as const;
+type CampoEditavel = keyof typeof ROTULO_DO_CAMPO;
+const CAMPOS_EDITAVEIS = Object.keys(ROTULO_DO_CAMPO) as CampoEditavel[];
+type Mudancas = Partial<Pick<OrdemColeta, CampoEditavel>>;
+
+// Campos que mudam o que o motorista precisa saber para ir até o cliente.
+const CAMPOS_DO_DESTINO: CampoEditavel[] = [
+  'clienteId',
+  'enderecoColeta',
+  'dataColeta',
+];
+
+const juntar = (itens: string[]) =>
+  itens.length > 1
+    ? `${itens.slice(0, -1).join(', ')} e ${itens.at(-1)}`
+    : (itens[0] ?? '');
 
 @Injectable()
 export class OrdensService {
@@ -192,6 +224,105 @@ export class OrdensService {
     return this.detalhar(id, motorista);
   }
 
+  // Edição pelo gestor (RF13): antes de o motorista iniciar, tudo pode mudar; em andamento,
+  // só as observações; finalizada, nada. A troca de motorista avisa quem ganhou e quem perdeu.
+  async editar(id: number, dto: EditarOrdemDto, gestor: UsuarioAutenticado) {
+    const edicao = await this.dataSource.transaction(async (em) => {
+      const ordem = await em.findOne(OrdemColeta, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!ordem) {
+        throw new NotFoundException('Ordem de coleta não encontrada.');
+      }
+
+      const mudancas = this.camposAlterados(ordem, dto);
+      const campos = Object.keys(mudancas) as CampoEditavel[];
+      if (!campos.length) return null;
+      this.validarEdicaoPermitida(ordem.status, campos);
+
+      const motoristaId =
+        mudancas.motoristaId === undefined
+          ? ordem.motoristaId
+          : mudancas.motoristaId;
+      const veiculoId =
+        mudancas.veiculoId === undefined ? ordem.veiculoId : mudancas.veiculoId;
+      if ((motoristaId == null) !== (veiculoId == null)) {
+        throw new BadRequestException(
+          'Informe o motorista e o caminhão, ou nenhum dos dois para disponibilizar a coleta.',
+        );
+      }
+      if (mudancas.dataColeta && mudancas.dataColeta < hoje()) {
+        throw new UnprocessableEntityException(
+          'A data da coleta não pode estar no passado.',
+        );
+      }
+      if (mudancas.clienteId) await this.clienteAtivo(em, mudancas.clienteId);
+      if (mudancas.veiculoId) await this.veiculoAtivo(em, mudancas.veiculoId);
+      if (mudancas.motoristaId) {
+        await this.motoristaAtivo(em, mudancas.motoristaId);
+      }
+
+      let status = ordem.status;
+      if (status === StatusOrdem.DISPONIVEL && motoristaId != null) {
+        status = StatusOrdem.AGUARDANDO;
+      } else if (status === StatusOrdem.AGUARDANDO && motoristaId == null) {
+        status = StatusOrdem.DISPONIVEL;
+      }
+
+      await em.update(
+        OrdemColeta,
+        ordem.id,
+        status === ordem.status ? mudancas : { ...mudancas, status },
+      );
+      await em.insert(HistoricoStatus, {
+        ordemId: ordem.id,
+        usuarioId: gestor.id,
+        statusAnterior: ordem.status,
+        statusNovo: status,
+        motivo: `Ordem editada: ${juntar(campos.map((c) => ROTULO_DO_CAMPO[c]))}`,
+      });
+      return { antes: ordem, campos };
+    });
+
+    const atualizada = await this.detalhar(id, gestor);
+    if (edicao) this.avisarEdicao(edicao.antes, atualizada, edicao.campos);
+    return atualizada;
+  }
+
+  // O peso só é conhecido na balança, depois da coleta: o gestor registra na ordem concluída.
+  async registrarPeso(
+    id: number,
+    { pesoRealKg }: RegistrarPesoDto,
+    gestor: UsuarioAutenticado,
+  ) {
+    await this.dataSource.transaction(async (em) => {
+      const ordem = await em.findOne(OrdemColeta, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!ordem) {
+        throw new NotFoundException('Ordem de coleta não encontrada.');
+      }
+      if (ordem.status !== StatusOrdem.CONCLUIDA) {
+        throw new ConflictException(
+          'O peso da balança só pode ser registrado em coleta concluída.',
+        );
+      }
+      if (ordem.pesoRealKg === pesoRealKg) return;
+
+      await em.update(OrdemColeta, ordem.id, { pesoRealKg });
+      await em.insert(HistoricoStatus, {
+        ordemId: ordem.id,
+        usuarioId: gestor.id,
+        statusAnterior: ordem.status,
+        statusNovo: ordem.status,
+        motivo: `Peso da balança: ${pesoRealKg.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg`,
+      });
+    });
+    return this.detalhar(id, gestor);
+  }
+
   async listar(filtros: FiltroOrdensDto, usuario: UsuarioAutenticado) {
     const where: FindOptionsWhere<OrdemColeta> = {};
     if (filtros.data) where.dataColeta = filtros.data;
@@ -260,7 +391,15 @@ export class OrdensService {
       const local =
         usuario.perfil === Perfil.MOTORISTA ? dto.localizacao : undefined;
 
-      await em.update(OrdemColeta, ordem.id, { status: dto.status });
+      // Ao sair de "em andamento", a corrida termina: distância e duração ficam gravadas.
+      const corrida =
+        ordem.status === StatusOrdem.EM_ANDAMENTO
+          ? await this.consolidarTrajeto(em, ordem.id)
+          : {};
+      await em.update(OrdemColeta, ordem.id, {
+        status: dto.status,
+        ...corrida,
+      });
       await em.insert(HistoricoStatus, {
         ordemId: ordem.id,
         usuarioId: usuario.id,
@@ -305,6 +444,119 @@ export class OrdensService {
 
     const total = Object.values(porStatus).reduce((a, b) => a + b, 0);
     return { data, total, porStatus };
+  }
+
+  // Só o que foi enviado e é diferente do que já está gravado.
+  private camposAlterados(ordem: OrdemColeta, dto: EditarOrdemDto) {
+    const mudancas: Record<string, unknown> = {};
+    for (const campo of CAMPOS_EDITAVEIS) {
+      let valor: unknown = dto[campo];
+      if (valor === undefined) continue;
+      if (typeof valor === 'string') valor = valor.trim();
+      if (campo === 'observacao' && valor === '') valor = null;
+      if (valor !== ordem[campo]) mudancas[campo] = valor;
+    }
+    return mudancas as Mudancas;
+  }
+
+  private validarEdicaoPermitida(status: StatusOrdem, campos: CampoEditavel[]) {
+    if (
+      status === StatusOrdem.DISPONIVEL ||
+      status === StatusOrdem.AGUARDANDO
+    ) {
+      return;
+    }
+    if (status === StatusOrdem.EM_ANDAMENTO) {
+      if (campos.every((c) => c === 'observacao')) return;
+      throw new ConflictException(
+        'Com a coleta em andamento, só as observações podem ser alteradas.',
+      );
+    }
+    throw new ConflictException('Coleta finalizada não pode ser editada.');
+  }
+
+  private avisarEdicao(
+    antes: OrdemColeta,
+    depois: OrdemColeta,
+    campos: CampoEditavel[],
+  ) {
+    const dia = hoje();
+    if (antes.motoristaId !== depois.motoristaId) {
+      if (antes.motoristaId != null) {
+        void this.notificacoes.enviarParaUsuario(
+          antes.motoristaId,
+          avisoColetaReatribuida(depois, dia),
+        );
+      }
+      if (depois.motoristaId == null) {
+        void this.notificacoes.enviarParaMotoristas(
+          avisoColetaDisponivel(depois, dia),
+        );
+      } else {
+        void this.notificacoes.enviarParaUsuario(
+          depois.motoristaId,
+          avisoNovaColeta(depois, dia),
+        );
+      }
+      return;
+    }
+    if (
+      depois.motoristaId != null &&
+      campos.some((c) => CAMPOS_DO_DESTINO.includes(c))
+    ) {
+      void this.notificacoes.enviarParaUsuario(
+        depois.motoristaId,
+        avisoColetaAlterada(depois, dia),
+      );
+    }
+  }
+
+  private async consolidarTrajeto(em: EntityManager, ordemId: number) {
+    const pontos = await em.find(PontoTrajeto, {
+      select: {
+        latitude: true,
+        longitude: true,
+        precisaoMetros: true,
+        registradoEm: true,
+      },
+      where: { ordemId },
+    });
+    const inicio = await em.findOne(HistoricoStatus, {
+      where: { ordemId, statusNovo: StatusOrdem.EM_ANDAMENTO },
+      order: { id: 'ASC' },
+    });
+    const agora = new Date();
+    const { distanciaMetros, duracaoSegundos } = resumirTrajeto(
+      pontos,
+      inicio?.createdAt ?? null,
+      agora,
+      agora,
+    );
+    return { distanciaMetros, duracaoSegundos };
+  }
+
+  private async clienteAtivo(em: EntityManager, id: number) {
+    const cliente = await em.findOneBy(Cliente, { id, ativo: true });
+    if (!cliente) {
+      throw new UnprocessableEntityException(
+        'Cliente não encontrado ou inativo.',
+      );
+    }
+    return cliente;
+  }
+
+  private async motoristaAtivo(em: EntityManager, id: number) {
+    const motorista = await em.findOneBy(Usuario, {
+      id,
+      perfil: Perfil.MOTORISTA,
+      ativo: true,
+    });
+    if (!motorista) {
+      throw new UnprocessableEntityException(
+        'Motorista não encontrado ou inativo.',
+      );
+    }
+    return motorista;
   }
 
   private async veiculoAtivo(em: EntityManager, id: number) {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { desligarAvisosNoApp } from '../nativo/avisosNoApp.ts'
 import { apiFalsa, corpoEnviado } from '../testes/apiFalsa.ts'
 import {
   ativarAvisos,
@@ -7,6 +8,10 @@ import {
   estadoAvisos,
   precisaInstalarNoIphone,
 } from './notificacoes.ts'
+
+const app = vi.hoisted(() => ({ nativo: false }))
+vi.mock('../nativo/plataforma.ts', () => ({ ehAppNativo: () => app.nativo }))
+vi.mock('../nativo/avisosNoApp.ts', () => ({ desligarAvisosNoApp: vi.fn() }))
 
 const inscricao = {
   endpoint: 'https://fcm.googleapis.com/fcm/send/abc',
@@ -144,6 +149,16 @@ describe('avisos no celular', () => {
       expect(inscricao.unsubscribe).toHaveBeenCalled()
       expect(fetchFalso).not.toHaveBeenCalled()
     })
+  })
+
+  it('no app Android, ao sair, descadastra o aparelho no Firebase', async () => {
+    app.nativo = true
+    try {
+      await cancelarInscricaoDoAparelho()
+      expect(desligarAvisosNoApp).toHaveBeenCalled()
+    } finally {
+      app.nativo = false
+    }
   })
 
   describe('precisaInstalarNoIphone', () => {

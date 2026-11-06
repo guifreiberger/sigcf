@@ -27,6 +27,8 @@ export interface Motorista {
   perfil: Perfil
   telefone: string | null
   cnh: string | null
+  // Caminhão que vem preenchido ao criar uma ordem para o motorista (RF14).
+  veiculoPadraoId: number | null
   ativo: boolean
 }
 
@@ -73,6 +75,11 @@ export interface Ordem {
   enderecoColeta: string
   dataColeta: string
   pesoEstimadoKg: number | null
+  // Peso medido na balança depois da coleta, registrado pelo gestor (RF08).
+  pesoRealKg: number | null
+  // Gravados quando a coleta termina, a partir do trajeto e do histórico.
+  distanciaMetros: number | null
+  duracaoSegundos: number | null
   status: StatusOrdem
   observacao: string | null
   createdAt: string
@@ -134,6 +141,52 @@ export interface Resumo {
   data: string
   total: number
   porStatus: Record<StatusOrdem, number>
+}
+
+// Dashboard do gestor (RF09): peso da balança, clientes e motoristas no período.
+export interface Dashboard {
+  de: string
+  ate: string
+  agrupamento: 'dia' | 'mes'
+  totais: {
+    coletas: number
+    concluidas: number
+    falhas: number
+    canceladas: number
+    pesoKg: number
+    semPesagem: number
+    distanciaMetros: number
+    duracaoMediaSegundos: number | null
+  }
+  pesoPorPeriodo: { periodo: string; pesoKg: number; coletas: number }[]
+  clientes: { clienteId: number; cliente: string; coletas: number; pesoKg: number }[]
+  motoristas: {
+    motoristaId: number
+    motorista: string
+    coletas: number
+    falhas: number
+    distanciaMetros: number
+    pesoKg: number
+    duracaoMediaSegundos: number | null
+  }[]
+}
+
+// Linha do relatório de coletas por período (RF15).
+export interface LinhaRelatorio {
+  id: number
+  dataColeta: string
+  cliente: string
+  enderecoColeta: string
+  motorista: string | null
+  placa: string | null
+  status: StatusOrdem
+  pesoEstimadoKg: number | null
+  pesoRealKg: number | null
+  distanciaMetros: number | null
+  duracaoSegundos: number | null
+  inicio: string | null
+  fim: string | null
+  motivo: string | null
 }
 
 export interface PontoTrajeto {

@@ -1,8 +1,30 @@
+import { CapacitorHttp } from '@capacitor/core'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { salvarSessao } from '../../api/cliente.ts'
+import type { LeituraGps } from '../../nativo/gpsEmSegundoPlano.ts'
 import { sessaoDe } from '../../testes/renderizar.tsx'
 import { useRastreamento } from './useRastreamento.ts'
+
+// Por padrão os testes rodam como no navegador; o bloco "no app Android" liga o modo nativo.
+const nativo = vi.hoisted(() => ({
+  ligado: false,
+  aoLer: null as ((leitura: LeituraGps) => void) | null,
+  aoFalhar: null as ((motivo: 'sem-permissao' | 'outro') => void) | null,
+  parar: () => {},
+}))
+vi.mock('../../nativo/plataforma.ts', () => ({ ehAppNativo: () => nativo.ligado }))
+vi.mock('../../nativo/gpsEmSegundoPlano.ts', () => ({
+  acompanharEmSegundoPlano: vi.fn((aoLer, aoFalhar) => {
+    nativo.aoLer = aoLer
+    nativo.aoFalhar = aoFalhar
+    return nativo.parar
+  }),
+}))
+vi.mock('@capacitor/core', async (original) => ({
+  ...(await original<typeof import('@capacitor/core')>()),
+  CapacitorHttp: { request: vi.fn() },
+}))
 
 const CHAVE_PENDENTES = 'sigcf.trajeto.pendentes'
 const INICIO = Date.parse('2026-11-04T15:00:00Z')
@@ -266,6 +288,84 @@ describe('useRastreamento', () => {
       expect(gps.clearWatch).toHaveBeenCalledWith(42)
       expect(gps.watchPosition).toHaveBeenCalledTimes(2)
       expect(gps.getCurrentPosition).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('avisa a tela quando o servidor diz que a coleta já terminou, para parar o rastreamento', async () => {
+    servidorQueResponde(409)
+    const aoEncerrar = vi.fn()
+    renderHook(() => useRastreamento(true, aoEncerrar))
+
+    gps.ler(-26.4851, 0)
+    await act(() => vi.advanceTimersByTimeAsync(15_000))
+
+    expect(aoEncerrar).toHaveBeenCalledOnce()
+  })
+
+  describe('no app Android', () => {
+    const httpNativo = vi.mocked(CapacitorHttp.request)
+    const leitura = (latitude: number, segundos: number): LeituraGps => ({
+      latitude,
+      longitude: -49.0713,
+      precisaoMetros: 6,
+      registradoEm: INICIO + segundos * 1000,
+    })
+    const lerNativo = (latitude: number, segundos: number) => {
+      vi.setSystemTime(INICIO + segundos * 1000)
+      act(() => nativo.aoLer?.(leitura(latitude, segundos)))
+    }
+
+    beforeEach(() => {
+      nativo.ligado = true
+      nativo.parar = vi.fn()
+      httpNativo.mockResolvedValue({ status: 204, data: '', headers: {}, url: '' })
+    })
+
+    afterEach(() => {
+      nativo.ligado = false
+      httpNativo.mockReset()
+    })
+
+    it('grava pelo plugin de segundo plano, sem prender a tela nem usar o GPS do navegador', () => {
+      const { wakeLock } = telaFalsa()
+      const { result } = renderHook(() => useRastreamento(true))
+
+      expect(nativo.aoLer).toBeTypeOf('function')
+      expect(gps.watchPosition).not.toHaveBeenCalled()
+      expect(wakeLock.request).not.toHaveBeenCalled()
+      expect(result.current.estado).toBe('aguardando-gps')
+    })
+
+    it('envia as posições assim que juntam 15 s, sem depender do relógio da tela, que o Android congela', async () => {
+      const { result } = renderHook(() => useRastreamento(true))
+
+      lerNativo(-26.4851, 0)
+      lerNativo(-26.4849, 16)
+      await act(() => Promise.resolve())
+
+      expect(result.current.estado).toBe('compartilhando')
+      expect(httpNativo).toHaveBeenCalledTimes(1)
+      const { data } = httpNativo.mock.calls[0][0] as { data: { pontos: unknown[] } }
+      expect(data.pontos).toHaveLength(2)
+    })
+
+    it('fica sem GPS quando o motorista não libera a localização', () => {
+      const { result } = renderHook(() => useRastreamento(true))
+
+      act(() => nativo.aoFalhar?.('sem-permissao'))
+
+      expect(result.current.estado).toBe('sem-gps')
+    })
+
+    it('desliga o GPS ao terminar a coleta', () => {
+      const { result, rerender } = renderHook(({ ativo }) => useRastreamento(ativo), {
+        initialProps: { ativo: true },
+      })
+
+      rerender({ ativo: false })
+
+      expect(nativo.parar).toHaveBeenCalled()
+      expect(result.current.estado).toBe('desligado')
     })
   })
 

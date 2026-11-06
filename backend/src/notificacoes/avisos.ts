@@ -57,6 +57,27 @@ export function avisoColetaDisponivel(
   };
 }
 
+export function avisoColetaAlterada(ordem: OrdemDoAviso, hoje: string): Aviso {
+  return {
+    titulo: 'Coleta alterada',
+    corpo: descricao(ordem, hoje),
+    url: '/motorista',
+    tag: tag(ordem),
+  };
+}
+
+export function avisoColetaReatribuida(
+  ordem: OrdemDoAviso,
+  hoje: string,
+): Aviso {
+  return {
+    titulo: 'Coleta passou para outro motorista',
+    corpo: `${ordem.cliente.nome}, ${quando(ordem.dataColeta, hoje)}`,
+    url: '/motorista',
+    tag: tag(ordem),
+  };
+}
+
 export function avisoColetaCancelada(
   ordem: OrdemDoAviso,
   hoje: string,

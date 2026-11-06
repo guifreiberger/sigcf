@@ -37,6 +37,8 @@
   --aviso-fundo: #fef9c3;
   --aviso-texto: #854d0e;
 
+  /* Cor das barras dos gráficos: ocre da marca, com contraste de pelo menos 3:1 sobre o cartão. */
+  --grafico: #a16207;
   --st-disponivel: #6d28d9;
   --st-disponivel-fundo: #ede9fe;
   --st-aguardando: #854d0e;
@@ -1439,6 +1441,210 @@ svg.lucide {
 
 .avisos .alerta {
   flex-basis: 100%;
+}
+
+/* Dashboard */
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.indicadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.9rem;
+}
+
+.indicador {
+  display: grid;
+  gap: 0.2rem;
+  padding: 1rem 1.1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+
+.indicador__rotulo {
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+}
+
+.indicador__valor {
+  font-size: 1.6rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.indicador small {
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+}
+
+.indicador--atencao small {
+  color: var(--aviso-texto);
+  font-weight: 600;
+}
+
+.grafico-colunas {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.grafico-colunas__escala {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+.grafico-colunas__area {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 200px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--borda);
+}
+
+.grafico-colunas__coluna {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  justify-content: center;
+  align-items: flex-end;
+  height: 100%;
+  min-width: 0;
+  outline-offset: 2px;
+}
+
+.grafico-colunas__barra {
+  width: 100%;
+  max-width: 24px;
+  background: var(--grafico);
+  border-radius: 4px 4px 0 0;
+}
+
+.grafico-colunas__dica {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  z-index: 2;
+  display: none;
+  transform: translateX(-50%);
+  padding: 0.3rem 0.5rem;
+  background: var(--grafite-900);
+  color: #fff;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+/* Sem a dica no layout enquanto escondida: ela não pode alargar a página. */
+.grafico-colunas__coluna:hover .grafico-colunas__dica,
+.grafico-colunas__coluna:focus-visible .grafico-colunas__dica {
+  display: block;
+}
+
+.grafico-colunas__coluna--inicio .grafico-colunas__dica {
+  left: 0;
+  transform: none;
+}
+
+.grafico-colunas__coluna--fim .grafico-colunas__dica {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.grafico-colunas__eixo {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+.grafico-colunas details {
+  font-size: 0.85rem;
+}
+
+.ranking {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ranking__topo {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.ranking__valores {
+  display: flex;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.ranking__valores small {
+  color: var(--texto-suave);
+}
+
+.ranking__trilho {
+  display: block;
+  height: 8px;
+  background: var(--superficie-2);
+  border-radius: 4px;
+}
+
+.ranking__barra {
+  display: block;
+  height: 100%;
+  background: var(--grafico);
+  border-radius: 0 4px 4px 0;
+}
+
+/* Grupo de campos que pode ser bloqueado inteiro (ordem em andamento só edita observações). */
+.formulario__grupo {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.campo-com-dica {
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+}
+
+.campo-com-dica small {
+  font-size: 0.8rem;
+}
+
+.peso-balanca {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.peso-balanca--formulario {
+  display: grid;
+  justify-items: start;
+}
+
+.linha-tempo__motivo--edicao {
+  font-style: normal;
 }
 
 .opcoes {

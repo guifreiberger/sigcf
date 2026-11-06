@@ -2,12 +2,14 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { hash } from 'bcryptjs';
 import { Repository } from 'typeorm';
 import { Perfil } from '../usuarios/perfil.enum.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
+import { Veiculo } from '../veiculos/veiculo.entity.js';
 import {
   AtualizarMotoristaDto,
   CriarMotoristaDto,
@@ -17,6 +19,8 @@ import {
 export class MotoristasService {
   constructor(
     @InjectRepository(Usuario) private readonly repo: Repository<Usuario>,
+    @InjectRepository(Veiculo)
+    private readonly veiculos: Repository<Veiculo>,
   ) {}
 
   listar(ativo?: boolean) {
@@ -40,6 +44,7 @@ export class MotoristasService {
 
   async criar({ senha, ...dados }: CriarMotoristaDto) {
     await this.garantirEmailLivre(dados.email);
+    await this.garantirCaminhaoAtivo(dados.veiculoPadraoId);
     const { id } = await this.repo.save(
       this.repo.create({
         ...dados,
@@ -55,6 +60,7 @@ export class MotoristasService {
     if (dados.email && dados.email !== motorista.email) {
       await this.garantirEmailLivre(dados.email);
     }
+    await this.garantirCaminhaoAtivo(dados.veiculoPadraoId);
     await this.repo.update(id, {
       ...dados,
       ...(senha ? { senhaHash: await hash(senha, 10) } : {}),
@@ -65,6 +71,15 @@ export class MotoristasService {
   async desativar(id: number) {
     await this.buscar(id);
     await this.repo.update(id, { ativo: false });
+  }
+
+  private async garantirCaminhaoAtivo(id: number | null | undefined) {
+    if (id == null) return;
+    if (!(await this.veiculos.existsBy({ id, ativo: true }))) {
+      throw new UnprocessableEntityException(
+        'Caminhão não encontrado ou inativo.',
+      );
+    }
   }
 
   private async garantirEmailLivre(email: string) {

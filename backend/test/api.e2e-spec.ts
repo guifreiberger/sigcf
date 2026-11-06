@@ -5,6 +5,9 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { Cliente } from '../src/clientes/cliente.entity.js';
 import { hoje, somarDias } from '../src/common/data.js';
+import { AparelhoApp } from '../src/notificacoes/aparelho-app.entity.js';
+import type { Aviso } from '../src/notificacoes/avisos.js';
+import { EnviadorFcm } from '../src/notificacoes/enviador-fcm.js';
 import {
   type DestinoPush,
   EnviadorPush,
@@ -37,6 +40,17 @@ const enviadorFalso: EnviadorPush = {
   },
 };
 
+// Firebase falso: guarda o que seria enviado ao app Android de cada aparelho.
+const enviadosAoApp: { token: string; aviso: Aviso }[] = [];
+const desinstalados = new Set<string>();
+const fcmFalso: EnviadorFcm = {
+  ativo: true,
+  enviar: async (token: string, aviso: Aviso) => {
+    enviadosAoApp.push({ token, aviso });
+    return desinstalados.has(token) ? 'EXPIRADO' : 'ENVIADO';
+  },
+};
+
 describe('API do SIGCF (e2e)', () => {
   let app: NestExpressApplication;
   const tokens = {} as Record<Quem, string>;
@@ -62,6 +76,8 @@ describe('API do SIGCF (e2e)', () => {
     })
       .overrideProvider(EnviadorPush)
       .useValue(enviadorFalso)
+      .overrideProvider(EnviadorFcm)
+      .useValue(fcmFalso)
       .compile();
     app = configurarApp(
       moduleRef.createNestApplication<NestExpressApplication>(),
@@ -748,6 +764,15 @@ describe('API do SIGCF (e2e)', () => {
       expect(res.body.duracaoSegundos).toBeGreaterThanOrEqual(0);
     });
 
+    it('grava na ordem a distância e a duração ao concluir', async () => {
+      const res = await api()
+        .get(`/api/ordens/${ordem}`)
+        .set(como('gestor'))
+        .expect(200);
+      expect(res.body.distanciaMetros).toBe(445);
+      expect(res.body.duracaoSegundos).toBeGreaterThanOrEqual(0);
+    });
+
     it('tira do mapa a coleta concluída', async () => {
       const res = await api()
         .get('/api/rastreamento/em-rota')
@@ -761,6 +786,254 @@ describe('API do SIGCF (e2e)', () => {
         .get('/api/rastreamento/ordens/999999')
         .set(como('gestor'))
         .expect(404));
+  });
+
+  describe('avisos no app Android (Firebase)', () => {
+    const tokenDoJoao = 'token-firebase-do-joao:APA91b-e2e';
+    const registrar = (quem: Quem, token: string) =>
+      api().post('/api/notificacoes/aparelhos').set(como(quem)).send({ token });
+    const aparelhosCom = (token: string) =>
+      app.get(DataSource).getRepository(AparelhoApp).findBy({ token });
+
+    beforeEach(() => {
+      enviadosAoApp.length = 0;
+    });
+
+    it('recusa um token que não é do Firebase', () =>
+      registrar('joao', 'token com espaço').expect(400));
+
+    it('avisa no app a coleta nova do motorista', async () => {
+      await registrar('joao', tokenDoJoao).expect(204);
+
+      await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+
+      await vi.waitFor(() => expect(enviadosAoApp).toHaveLength(1));
+      expect(enviadosAoApp[0]).toMatchObject({
+        token: tokenDoJoao,
+        aviso: { titulo: 'Nova coleta para você', url: '/motorista' },
+      });
+    });
+
+    it('apaga o aparelho que o Firebase informa como desinstalado', async () => {
+      const antigo = 'token-firebase-antigo:APA91b-e2e';
+      await registrar('joao', antigo).expect(204);
+      desinstalados.add(antigo);
+
+      await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+
+      await vi.waitFor(async () =>
+        expect(await aparelhosCom(antigo)).toHaveLength(0),
+      );
+      expect(await aparelhosCom(tokenDoJoao)).toHaveLength(1);
+    });
+
+    it('para de avisar o aparelho quando o motorista sai da conta', async () => {
+      await api()
+        .delete('/api/notificacoes/aparelhos')
+        .set(como('joao'))
+        .send({ token: tokenDoJoao })
+        .expect(204);
+
+      expect(await aparelhosCom(tokenDoJoao)).toHaveLength(0);
+    });
+  });
+
+  describe('RF13 — edição de ordens', () => {
+    let ordem: number;
+    const editarOrdem = (quem: Quem, id: number, corpo: object) =>
+      api().patch(`/api/ordens/${id}`).set(como(quem)).send(corpo);
+    const idsDasMinhas = async (quem: Quem) =>
+      (
+        await api().get('/api/ordens/minhas').set(como(quem)).expect(200)
+      ).body.map((o: { id: number }) => o.id);
+
+    beforeAll(async () => {
+      const { body } = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+      ordem = body.id;
+    });
+
+    it('somente o gestor edita', () =>
+      editarOrdem('joao', ordem, { observacao: 'x' }).expect(403));
+
+    it('edita os dados e registra a edição no histórico', async () => {
+      const res = await editarOrdem('gestor', ordem, {
+        enderecoColeta: 'Portaria 2',
+        observacao: 'Ligar antes',
+      }).expect(200);
+
+      expect(res.body).toMatchObject({
+        enderecoColeta: 'Portaria 2',
+        observacao: 'Ligar antes',
+      });
+      expect(res.body.historico.at(-1)).toMatchObject({
+        statusAnterior: 'AGUARDANDO',
+        statusNovo: 'AGUARDANDO',
+        motivo: 'Ordem editada: endereço e observações',
+      });
+    });
+
+    it('passa a coleta para outro motorista', async () => {
+      await editarOrdem('gestor', ordem, {
+        motoristaId: ids.maria,
+        veiculoId: ids.veiculo,
+      }).expect(200);
+
+      expect(await idsDasMinhas('maria')).toContain(ordem);
+      expect(await idsDasMinhas('joao')).not.toContain(ordem);
+    });
+
+    it('com a coleta em andamento, só aceita mudar as observações', async () => {
+      await alterarStatus('maria', ordem, { status: 'EM_ANDAMENTO' }).expect(
+        200,
+      );
+
+      await editarOrdem('gestor', ordem, {
+        dataColeta: somarDias(hoje(), 1),
+      }).expect(409);
+      await editarOrdem('gestor', ordem, {
+        observacao: 'Portão lateral',
+      }).expect(200);
+    });
+
+    it('não deixa a ordem com motorista sem caminhão', async () => {
+      const { body } = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send({ clienteId: ids.cliente, dataColeta: hoje() })
+        .expect(201);
+
+      await editarOrdem('gestor', body.id, { motoristaId: ids.joao }).expect(
+        400,
+      );
+      // Cancela para não aparecer nas coletas disponíveis dos testes seguintes.
+      await alterarStatus('gestor', body.id, {
+        status: 'CANCELADA',
+        motivo: 'Teste de edição',
+      }).expect(200);
+    });
+  });
+
+  describe('RF08 — peso da balança', () => {
+    let ordem: number;
+    const registrarPeso = (quem: Quem, pesoRealKg: number) =>
+      api()
+        .patch(`/api/ordens/${ordem}/peso`)
+        .set(como(quem))
+        .send({ pesoRealKg });
+
+    beforeAll(async () => {
+      const { body } = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+      ordem = body.id;
+    });
+
+    it('só aceita o peso depois que a coleta é concluída', async () => {
+      await registrarPeso('gestor', 800).expect(409);
+
+      await alterarStatus('joao', ordem, { status: 'EM_ANDAMENTO' }).expect(
+        200,
+      );
+      await alterarStatus('joao', ordem, { status: 'CONCLUIDA' }).expect(200);
+
+      const res = await registrarPeso('gestor', 1230.5).expect(200);
+      expect(res.body.pesoRealKg).toBe(1230.5);
+      expect(res.body.historico.at(-1).motivo).toBe(
+        'Peso da balança: 1.230,5 kg',
+      );
+    });
+
+    it('somente o gestor registra o peso', () =>
+      registrarPeso('joao', 900).expect(403));
+  });
+
+  describe('RF14 — caminhão padrão do motorista', () => {
+    it('guarda o caminhão padrão no cadastro do motorista', async () => {
+      const { body } = await api()
+        .post('/api/motoristas')
+        .set(como('gestor'))
+        .send({
+          nome: 'Motorista com Caminhão',
+          email: 'padrao@e2e.local',
+          senha: 'senha-e2e',
+          telefone: '47944444444',
+          veiculoPadraoId: ids.veiculo,
+        })
+        .expect(201);
+      expect(body.veiculoPadraoId).toBe(ids.veiculo);
+
+      await api()
+        .patch(`/api/motoristas/${body.id}`)
+        .set(como('gestor'))
+        .send({ veiculoPadraoId: ids.veiculoInativo })
+        .expect(422);
+    });
+  });
+
+  describe('RF09 e RF15 — dashboard e relatório de coletas', () => {
+    const periodo = () => `de=${somarDias(hoje(), -30)}&ate=${hoje()}`;
+
+    it('resume as coletas do período no dashboard do gestor', async () => {
+      const res = await api()
+        .get(`/api/relatorios/dashboard?${periodo()}`)
+        .set(como('gestor'))
+        .expect(200);
+
+      expect(res.body.agrupamento).toBe('dia');
+      expect(res.body.totais.concluidas).toBeGreaterThan(0);
+      expect(res.body.totais.pesoKg).toBeGreaterThanOrEqual(1230.5);
+      expect(
+        res.body.motoristas.map((m: { motorista: string }) => m.motorista),
+      ).toContain('João');
+    });
+
+    it('lista no relatório o peso da balança, a distância e o tempo de cada coleta', async () => {
+      const res = await api()
+        .get(`/api/relatorios/coletas?${periodo()}&status=CONCLUIDA`)
+        .set(como('gestor'))
+        .expect(200);
+
+      expect(
+        res.body.every((l: { status: string }) => l.status === 'CONCLUIDA'),
+      ).toBe(true);
+      expect(res.body).toContainEqual(
+        expect.objectContaining({
+          pesoRealKg: 1230.5,
+          motorista: 'João',
+          placa: 'AAA1111',
+        }),
+      );
+      expect(res.body).toContainEqual(
+        expect.objectContaining({ distanciaMetros: 445 }),
+      );
+    });
+
+    it('recusa período inválido e é restrito ao gestor', async () => {
+      await api()
+        .get(
+          `/api/relatorios/coletas?de=${hoje()}&ate=${somarDias(hoje(), -1)}`,
+        )
+        .set(como('gestor'))
+        .expect(400);
+      await api()
+        .get(`/api/relatorios/dashboard?${periodo()}`)
+        .set(como('joao'))
+        .expect(403);
+    });
   });
 
   describe('RF12 — coleta disponível, quem pega?', () => {

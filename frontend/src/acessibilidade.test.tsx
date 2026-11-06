@@ -4,12 +4,15 @@ import axe from 'axe-core'
 import { describe, expect, it } from 'vitest'
 import type { Ordem } from './api/tipos.ts'
 import { Login } from './paginas/Login.tsx'
+import { Dashboard } from './paginas/gestor/Dashboard.tsx'
 import { NovaOrdem } from './paginas/gestor/NovaOrdem.tsx'
 import { Painel } from './paginas/gestor/Painel.tsx'
+import { Relatorios } from './paginas/gestor/Relatorios.tsx'
 import { MinhasColetas } from './paginas/motorista/MinhasColetas.tsx'
 import { apiFalsa } from './testes/apiFalsa.ts'
 import { renderizar, sessaoDe } from './testes/renderizar.tsx'
 import { hojeLocal } from './util/formatos.ts'
+import { periodoPredefinido } from './util/periodos.ts'
 
 // Critérios da WCAG 2.1 (níveis A e AA) verificados pelo axe. O contraste de cores depende do
 // layout renderizado, que o jsdom não tem: ele é auditado no navegador (ver docs/acessibilidade.md).
@@ -30,13 +33,16 @@ const coleta = (dados: Partial<Ordem> & Pick<Ordem, 'id'>): Ordem => ({
   enderecoColeta: 'Rua Walter Marquardt, 1000',
   dataColeta: hoje,
   pesoEstimadoKg: 350,
+  pesoRealKg: null,
+  distanciaMetros: null,
+  duracaoSegundos: null,
   status: 'AGUARDANDO',
   observacao: 'Entrar pela portaria 2',
   createdAt: `${hoje}T10:00:00Z`,
   updatedAt: `${hoje}T10:00:00Z`,
   cliente: { id: 3, nome: 'WEG', telefone: '47988880000', endereco: '', ativo: true },
   veiculo: { id: 4, placa: 'ABC1234', modelo: 'VW Delivery', capacidadeKg: 5000, ativo: true },
-  motorista: { id: 7, nome: 'João da Silva', email: '', perfil: 'MOTORISTA', telefone: null, cnh: null, ativo: true },
+  motorista: { id: 7, nome: 'João da Silva', email: '', perfil: 'MOTORISTA', telefone: null, cnh: null, veiculoPadraoId: null, ativo: true },
   transicoesPermitidas: ['EM_ANDAMENTO'],
   ...dados,
 })
@@ -87,6 +93,36 @@ describe('acessibilidade (WCAG 2.1 AA)', () => {
     renderizar(<NovaOrdem />, { sessao: sessaoDe('GESTOR') })
 
     await screen.findByRole('option', { name: 'WEG' })
+    expect(await violacoes()).toEqual([])
+  })
+
+  it('dashboard do gestor', async () => {
+    const { de, ate } = periodoPredefinido('30dias', hoje)
+    apiFalsa({
+      [`GET /relatorios/dashboard?de=${de}&ate=${ate}`]: {
+        corpo: {
+          de,
+          ate,
+          agrupamento: 'dia',
+          totais: { coletas: 2, concluidas: 1, falhas: 0, canceladas: 0, pesoKg: 800, semPesagem: 0, distanciaMetros: 5000, duracaoMediaSegundos: 1800 },
+          pesoPorPeriodo: [{ periodo: hoje, pesoKg: 800, coletas: 1 }],
+          clientes: [{ clienteId: 3, cliente: 'WEG', coletas: 2, pesoKg: 800 }],
+          motoristas: [{ motoristaId: 7, motorista: 'João', coletas: 1, falhas: 0, distanciaMetros: 5000, pesoKg: 800, duracaoMediaSegundos: 1800 }],
+        },
+      },
+      'GET /inteligencia/clientes': { corpo: { hoje, janelaDias: 365, alertas: [], clientes: [] } },
+    })
+    renderizar(<Dashboard />, { sessao: sessaoDe('GESTOR') })
+
+    await screen.findByRole('region', { name: 'Indicadores do período' })
+    expect(await violacoes()).toEqual([])
+  })
+
+  it('relatórios', async () => {
+    apiFalsa({ 'GET /motoristas': { corpo: [] }, 'GET /clientes': { corpo: [] } })
+    renderizar(<Relatorios />, { sessao: sessaoDe('GESTOR') })
+
+    await screen.findByRole('button', { name: 'Baixar planilha' })
     expect(await violacoes()).toEqual([])
   })
 

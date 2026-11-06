@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- app_name e title_activity_main vêm de cada ambiente, em app/build.gradle. -->
+    <string name="package_name">io.github.guifreiberger.sigcf</string>
+    <string name="custom_url_scheme">io.github.guifreiberger.sigcf</string>
+
+    <!-- Notificação fixa enquanto o trajeto da coleta é gravado em segundo plano. -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Trajeto da coleta</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_notificacao</string>
+    <string name="capacitor_background_geolocation_notification_color">#FACC15</string>
+</resources>

@@ -149,3 +149,43 @@ Como **motorista**, quero ver as coletas disponíveis e aceitar uma, escolhendo 
 - Dado que dois motoristas aceitam no mesmo instante, então só um fica com a coleta.
 
 > Testes: `api.e2e-spec.ts` (RF12, incluindo dois motoristas aceitando ao mesmo tempo), `ordens.service.spec.ts`, `transicoes.spec.ts`, `notificacoes.service.spec.ts`, `frontend/src/paginas/motorista/ColetasDisponiveis.test.tsx`, `NovaOrdem.test.tsx`
+
+## Melhorias pedidas pelo gestor (RF08, RF09, RF13 a RF15)
+
+Definidas com o gestor da Edepel na validação de 05/11/2026 ([relatório](validacao/relatorio-validacao.md)).
+
+**US18 — Corrigir uma ordem de coleta**
+Como **gestor**, quero editar uma ordem depois de criada, para corrigir data, endereço ou motorista sem cancelar e criar outra.
+
+- Dado uma ordem aguardando, quando troco o motorista, então ela sai da lista de quem a tinha, entra na do novo, os dois são avisados e o histórico registra a edição.
+- Dado uma ordem aguardando, quando tiro o motorista e o caminhão, então ela volta a ficar disponível para todos.
+- Dado uma coleta em andamento, quando tento mudar a data, então o sistema recusa; as observações podem ser alteradas.
+- Dado uma coleta finalizada, então ela não pode ser editada.
+
+**US19 — Já vir com o caminhão do motorista**
+Como **gestor**, quero que, ao escolher o motorista, o caminhão que ele costuma usar já venha preenchido, mas que eu possa trocar naquela ordem.
+
+- Dado um motorista com caminhão padrão, quando o escolho na ordem, então o caminhão dele é preenchido e a tela indica que é o padrão.
+- Dado que troco o caminhão, então a ordem fica com o que escolhi.
+
+**US20 — Registrar o peso da balança**
+Como **gestor**, quero registrar o peso medido na balança depois da coleta, porque o motorista vai ao cliente sem saber quanto vai coletar.
+
+- Dado uma coleta concluída, quando registro o peso, então ele aparece na ordem, fica no histórico e passa a contar no dashboard e no relatório.
+- Dado uma coleta que ainda não foi concluída, então o sistema recusa o peso.
+
+**US21 — Acompanhar o período no dashboard**
+Como **gestor**, quero ver quanto foi coletado, quais clientes mais pedem e quanto cada motorista trabalhou no período, para planejar a operação.
+
+- Dado um período, então vejo o total de coletas, o peso da balança, a distância percorrida e o tempo médio, e quantas concluídas ainda esperam pesagem.
+- Dado o período, então vejo o peso por dia (ou por mês, em períodos longos), o ranking de clientes e uma tabela por motorista.
+- Os alertas de coletas esperadas e os padrões de pedidos continuam na mesma tela.
+
+**US22 — Baixar o relatório do mês**
+Como **gestor**, quero baixar uma planilha das coletas do período, para guardar, conferir e mandar aos clientes.
+
+- Dado um período e filtros por motorista, cliente e status, quando baixo, então recebo uma planilha que abre no Excel com uma linha por coleta.
+- Dado que não há coletas com esses filtros, então o sistema avisa e não baixa nada.
+- Um texto digitado que começa como fórmula não é executado ao abrir no Excel.
+
+> Testes: `api.e2e-spec.ts` (RF13, RF08, RF14, RF09 e RF15), `ordens.service.spec.ts`, `indicadores.spec.ts`, `relatorios.service.spec.ts`, `motoristas.service.spec.ts`, `frontend/src/paginas/gestor/EditarOrdem.test.tsx`, `DetalheOrdem.test.tsx`, `Dashboard.test.tsx`, `Relatorios.test.tsx`, `Cadastros.test.tsx`, `frontend/src/util/planilha.test.ts`

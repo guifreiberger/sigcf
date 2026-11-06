@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, montarQuery } from './cliente.ts'
 import type {
   Cliente,
+  Dashboard,
+  LinhaRelatorio,
   Inteligencia,
   Localizacao,
   Motorista,
@@ -119,6 +121,65 @@ export function useCriarOrdem() {
         queryClient.invalidateQueries({ queryKey: [chave] })
       }
     },
+  })
+}
+
+// Campos enviados na edição da ordem (RF13); nulo tira o motorista e o caminhão, o peso
+// estimado ou as observações.
+export interface EdicaoOrdem {
+  clienteId?: number
+  enderecoColeta?: string
+  dataColeta?: string
+  pesoEstimadoKg?: number | null
+  observacao?: string | null
+  motoristaId?: number | null
+  veiculoId?: number | null
+}
+
+function atualizarOrdemNoCache(queryClient: ReturnType<typeof useQueryClient>, ordem: Ordem) {
+  queryClient.setQueryData(['ordem', ordem.id], ordem)
+  for (const chave of ['ordens', 'resumo', 'dashboard']) {
+    queryClient.invalidateQueries({ queryKey: [chave] })
+  }
+}
+
+export function useEditarOrdem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, dados }: { id: number; dados: EdicaoOrdem }) =>
+      api<Ordem>(`/ordens/${id}`, { metodo: 'PATCH', corpo: dados }),
+    onSuccess: (ordem) => atualizarOrdemNoCache(queryClient, ordem),
+  })
+}
+
+export function useRegistrarPeso() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, pesoRealKg }: { id: number; pesoRealKg: number }) =>
+      api<Ordem>(`/ordens/${id}/peso`, { metodo: 'PATCH', corpo: { pesoRealKg } }),
+    onSuccess: (ordem) => atualizarOrdemNoCache(queryClient, ordem),
+  })
+}
+
+export function useDashboard(de: string, ate: string) {
+  return useQuery({
+    queryKey: ['dashboard', de, ate],
+    queryFn: () => api<Dashboard>(`/relatorios/dashboard${montarQuery({ de, ate })}`),
+  })
+}
+
+export interface FiltrosRelatorio {
+  de: string
+  ate: string
+  motoristaId?: number
+  clienteId?: number
+  status?: StatusOrdem
+}
+
+export function useRelatorioDeColetas() {
+  return useMutation({
+    mutationFn: (filtros: FiltrosRelatorio) =>
+      api<LinhaRelatorio[]>(`/relatorios/coletas${montarQuery({ ...filtros })}`),
   })
 }
 

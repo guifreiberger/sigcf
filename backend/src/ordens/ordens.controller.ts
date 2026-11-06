@@ -16,6 +16,8 @@ import {
   AceitarColetaDto,
   AlterarStatusDto,
   CriarOrdemDto,
+  EditarOrdemDto,
+  RegistrarPesoDto,
   DataQueryDto,
   FiltroOrdensDto,
 } from './dto/ordem.dto.js';
@@ -81,6 +83,26 @@ export class OrdensController {
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ) {
     return this.ordens.detalhar(id, usuario);
+  }
+
+  @Patch(':id')
+  @Perfis(Perfil.GESTOR)
+  editar(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: EditarOrdemDto,
+    @UsuarioAtual() gestor: UsuarioAutenticado,
+  ) {
+    return this.ordens.editar(id, dto, gestor);
+  }
+
+  @Patch(':id/peso')
+  @Perfis(Perfil.GESTOR)
+  registrarPeso(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RegistrarPesoDto,
+    @UsuarioAtual() gestor: UsuarioAutenticado,
+  ) {
+    return this.ordens.registrarPeso(id, dto, gestor);
   }
 
   @Patch(':id/status')

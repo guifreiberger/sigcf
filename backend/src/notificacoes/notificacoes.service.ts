@@ -2,10 +2,22 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Perfil } from '../usuarios/perfil.enum.js';
+import { AparelhoApp } from './aparelho-app.entity.js';
 import type { Aviso } from './avisos.js';
 import { InscricaoPushDto } from './dto/inscricao-push.dto.js';
+import { EnviadorFcm } from './enviador-fcm.js';
 import { EnviadorPush } from './enviador-push.js';
 import { InscricaoPush } from './inscricao-push.entity.js';
+
+const MOTORISTAS_ATIVOS = {
+  where: { usuario: { perfil: Perfil.MOTORISTA, ativo: true } },
+};
+
+// Onde procurar os destinos de um aviso: inscrições do navegador e aparelhos com o app.
+interface Destinos {
+  doNavegador: () => Promise<InscricaoPush[]>;
+  doApp: () => Promise<AparelhoApp[]>;
+}
 
 @Injectable()
 export class NotificacoesService {
@@ -15,6 +27,9 @@ export class NotificacoesService {
     @InjectRepository(InscricaoPush)
     private readonly inscricoes: Repository<InscricaoPush>,
     private readonly enviador: EnviadorPush,
+    @InjectRepository(AparelhoApp)
+    private readonly aparelhos: Repository<AparelhoApp>,
+    private readonly fcm: EnviadorFcm,
   ) {}
 
   chavePublica() {
@@ -37,37 +52,74 @@ export class NotificacoesService {
     await this.inscricoes.delete({ usuarioId, endpoint });
   }
 
+  async registrarAparelho(usuarioId: number, token: string) {
+    await this.aparelhos.upsert({ usuarioId, token }, ['token']);
+  }
+
+  async removerAparelho(usuarioId: number, token: string) {
+    await this.aparelhos.delete({ usuarioId, token });
+  }
+
   enviarParaUsuario(usuarioId: number, aviso: Aviso) {
-    return this.enviar(aviso, () => this.inscricoes.findBy({ usuarioId }));
+    return this.enviar(aviso, {
+      doNavegador: () => this.inscricoes.findBy({ usuarioId }),
+      doApp: () => this.aparelhos.findBy({ usuarioId }),
+    });
   }
 
   enviarParaMotoristas(aviso: Aviso) {
-    return this.enviar(aviso, () =>
-      this.inscricoes.find({
-        where: { usuario: { perfil: Perfil.MOTORISTA, ativo: true } },
+    return this.enviar(aviso, {
+      doNavegador: () => this.inscricoes.find(MOTORISTAS_ATIVOS),
+      doApp: () => this.aparelhos.find(MOTORISTAS_ATIVOS),
+    });
+  }
+
+  // Nunca rejeita: a falha de um aviso não pode desfazer a operação que o originou.
+  // Navegador e app são independentes: a falha de um não impede o outro.
+  private async enviar(aviso: Aviso, destinos: Destinos) {
+    const resultados = await Promise.allSettled([
+      this.enviarAoNavegador(aviso, destinos.doNavegador),
+      this.enviarAoApp(aviso, destinos.doApp),
+    ]);
+    for (const resultado of resultados) {
+      if (resultado.status === 'rejected') {
+        this.logger.warn(
+          `Falha ao processar notificações: ${String(resultado.reason)}`,
+        );
+      }
+    }
+  }
+
+  private async enviarAoApp(
+    aviso: Aviso,
+    buscar: () => Promise<AparelhoApp[]>,
+  ) {
+    if (!this.fcm.ativo) return;
+    const aparelhos = await buscar();
+    await Promise.all(
+      aparelhos.map(async (aparelho) => {
+        const resultado = await this.fcm.enviar(aparelho.token, aviso);
+        if (resultado === 'EXPIRADO') {
+          await this.aparelhos.delete({ id: aparelho.id });
+        }
       }),
     );
   }
 
-  // Nunca rejeita: a falha de um aviso não pode desfazer a operação que o originou.
-  private async enviar(
+  private async enviarAoNavegador(
     aviso: Aviso,
-    buscarDestinos: () => Promise<InscricaoPush[]>,
+    buscar: () => Promise<InscricaoPush[]>,
   ) {
     if (!this.enviador.chavePublica) return;
-    try {
-      const destinos = await buscarDestinos();
-      const conteudo = JSON.stringify(aviso);
-      await Promise.all(
-        destinos.map(async (destino) => {
-          const resultado = await this.enviador.enviar(destino, conteudo);
-          if (resultado === 'EXPIRADO') {
-            await this.inscricoes.delete({ id: destino.id });
-          }
-        }),
-      );
-    } catch (erro) {
-      this.logger.warn(`Falha ao processar notificações: ${String(erro)}`);
-    }
+    const destinos = await buscar();
+    const conteudo = JSON.stringify(aviso);
+    await Promise.all(
+      destinos.map(async (destino) => {
+        const resultado = await this.enviador.enviar(destino, conteudo);
+        if (resultado === 'EXPIRADO') {
+          await this.inscricoes.delete({ id: destino.id });
+        }
+      }),
+    );
   }
 }

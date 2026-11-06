@@ -1,7 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, BellOff, BellRing, LoaderCircle, Smartphone } from 'lucide-react'
+import { Bell, BellOff, BellRing, LoaderCircle, Settings, Smartphone } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { MensagemErro } from '../../componentes/Estados.tsx'
+import { ativarAvisosNoApp, type EstadoAvisosNoApp } from '../../nativo/avisosNoApp.ts'
+import { abrirConfiguracoesDoApp } from '../../nativo/gpsEmSegundoPlano.ts'
+import { ehAppNativo } from '../../nativo/plataforma.ts'
 import {
   ativarAvisos,
   desativarAvisos,
@@ -11,6 +14,52 @@ import {
 } from '../../util/notificacoes.ts'
 
 export function AvisosColetas() {
+  return ehAppNativo() ? <AvisosNoApp /> : <AvisosNoNavegador />
+}
+
+// No app Android os avisos vêm pelo Firebase e são ativados sozinhos ao abrir: o Android
+// mostra o pedido de permissão do próprio sistema.
+function AvisosNoApp() {
+  const queryClient = useQueryClient()
+  const [estado, setEstado] = useState<EstadoAvisosNoApp | 'indisponivel' | null>(null)
+
+  useEffect(() => {
+    const atualizar = () => {
+      for (const chave of ['minhas', 'disponiveis']) queryClient.invalidateQueries({ queryKey: [chave] })
+    }
+    ativarAvisosNoApp(atualizar).then(setEstado, () => setEstado('indisponivel'))
+  }, [queryClient])
+
+  if (estado === 'negado') {
+    return (
+      <section className="avisos">
+        <span className="avisos__icone">
+          <BellOff size={20} aria-hidden />
+        </span>
+        <p>Os avisos de coleta estão bloqueados. Libere as notificações do SIGCF nas configurações do celular.</p>
+        <button type="button" className="botao botao--secundario" onClick={() => void abrirConfiguracoesDoApp()}>
+          <Settings size={18} aria-hidden />
+          Abrir configurações
+        </button>
+      </section>
+    )
+  }
+
+  if (estado === 'ativo') {
+    return (
+      <section className="avisos avisos--ativo">
+        <span className="avisos__icone">
+          <BellRing size={16} aria-hidden />
+        </span>
+        <p>Avisos de coleta ativados neste celular.</p>
+      </section>
+    )
+  }
+
+  return null
+}
+
+function AvisosNoNavegador() {
   const queryClient = useQueryClient()
   const [estado, setEstado] = useState<EstadoAvisos | null>(null)
   const [processando, setProcessando] = useState(false)

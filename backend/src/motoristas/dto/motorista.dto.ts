@@ -1,8 +1,10 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
 import {
   IsBoolean,
+  IsInt,
   IsNotEmpty,
   IsOptional,
+  IsPositive,
   IsString,
   MaxLength,
   MinLength,
@@ -33,6 +35,12 @@ export class CriarMotoristaDto {
   @IsOptional()
   @IsCnh()
   cnh?: string | null;
+
+  // Nulo tira o caminhão padrão.
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  veiculoPadraoId?: number | null;
 }
 
 export class AtualizarMotoristaDto extends PartialType(

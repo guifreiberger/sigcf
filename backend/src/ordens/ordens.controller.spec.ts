@@ -4,6 +4,7 @@ import type {
   AceitarColetaDto,
   AlterarStatusDto,
   CriarOrdemDto,
+  EditarOrdemDto,
 } from './dto/ordem.dto.js';
 import { OrdensController } from './ordens.controller.js';
 import type { OrdensService } from './ordens.service.js';
@@ -22,6 +23,8 @@ describe('OrdensController', () => {
     alterarStatus: vi.fn(),
     disponiveis: vi.fn(),
     aceitar: vi.fn(),
+    editar: vi.fn(),
+    registrarPeso: vi.fn(),
   };
   const controller = new OrdensController(service as unknown as OrdensService);
   const perfisDa = (rota: keyof OrdensController) =>
@@ -32,6 +35,8 @@ describe('OrdensController', () => {
 
   it('restringe cada rota ao perfil que a utiliza', () => {
     expect(perfisDa('criar')).toEqual([Perfil.GESTOR]);
+    expect(perfisDa('editar')).toEqual([Perfil.GESTOR]);
+    expect(perfisDa('registrarPeso')).toEqual([Perfil.GESTOR]);
     expect(perfisDa('listar')).toEqual([Perfil.GESTOR]);
     expect(perfisDa('resumo')).toEqual([Perfil.GESTOR]);
     expect(perfisDa('minhas')).toEqual([Perfil.MOTORISTA]);
@@ -63,6 +68,24 @@ describe('OrdensController', () => {
     expect(service.minhas).toHaveBeenCalledWith(joao, '2026-11-05');
     expect(service.resumo).toHaveBeenCalledWith('2026-11-05');
     expect(service.detalhar).toHaveBeenCalledWith(10, joao);
+  });
+
+  it('edita a ordem em nome do gestor autenticado', async () => {
+    const dto: EditarOrdemDto = { observacao: 'Ligar antes' };
+
+    await controller.editar(10, dto, gestor);
+
+    expect(service.editar).toHaveBeenCalledWith(10, dto, gestor);
+  });
+
+  it('registra o peso da balança em nome do gestor autenticado', async () => {
+    await controller.registrarPeso(10, { pesoRealKg: 800 }, gestor);
+
+    expect(service.registrarPeso).toHaveBeenCalledWith(
+      10,
+      { pesoRealKg: 800 },
+      gestor,
+    );
   });
 
   it('altera o status em nome do usuário autenticado', async () => {

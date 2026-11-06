@@ -10,6 +10,7 @@ import { Perfil } from '../usuarios/perfil.enum.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
 import { Veiculo } from '../veiculos/veiculo.entity.js';
 import dataSource from './data-source.js';
+import { consolidarCorridasAntigas } from '../rastreamento/consolidar-corridas.js';
 
 const { AGUARDANDO, EM_ANDAMENTO, CONCLUIDA, FALHA, CANCELADA } = StatusOrdem;
 
@@ -103,8 +104,16 @@ async function registrar(
   aleatorio: () => number,
   diaAtual: string,
 ) {
-  // Gerador separado para não alterar os dados que a semente principal já produzia.
+  // Geradores separados para não alterar os dados que a semente principal já produzia.
   const gps = criarAleatorio(11);
+  const balanca = criarAleatorio(29);
+  // A balança mede até 15% para mais ou para menos do que o cliente estimou.
+  const pesoDaBalanca = (estimado: number | null) =>
+    Math.round(
+      estimado === null
+        ? 150 + balanca() * 850
+        : estimado * (0.85 + balanca() * 0.3),
+    );
   const agora = new Date();
   const minutosAtras = (minutos: number) =>
     new Date(agora.getTime() - minutos * 60_000);
@@ -131,6 +140,9 @@ async function registrar(
       enderecoColeta: p.cliente.endereco,
       dataColeta: p.data,
       pesoEstimadoKg: p.kg,
+      // A coleta concluída hoje fica sem peso, para demonstrar o registro depois da balança.
+      pesoRealKg:
+        passado && p.status === CONCLUIDA ? pesoDaBalanca(p.kg) : null,
       status: p.status,
       ...(passado
         ? { createdAt: criadaEm, updatedAt: hora(12, 40) }
@@ -238,6 +250,8 @@ async function popular(em: EntityManager, senha: string) {
     },
     { placa: 'RLS2C45', modelo: 'Fiat Fiorino', capacidadeKg: 650 },
   ]);
+  await em.update(Usuario, joao.id, { veiculoPadraoId: veiculos[1].id });
+  await em.update(Usuario, maria.id, { veiculoPadraoId: veiculos[0].id });
 
   const [malharia, supermercado, metalurgica, fundicao, farmacia, centro] =
     await em.save(Cliente, [
@@ -392,6 +406,7 @@ async function popular(em: EntityManager, senha: string) {
       motivo: null,
     });
   }
+  await consolidarCorridasAntigas(em);
   return pedidos.length + disponiveis.length;
 }
 

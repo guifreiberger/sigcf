@@ -1,4 +1,6 @@
 import { api } from '../api/cliente.ts'
+import { desligarAvisosNoApp } from '../nativo/avisosNoApp.ts'
+import { ehAppNativo } from '../nativo/plataforma.ts'
 
 export type EstadoAvisos = 'indisponivel' | 'bloqueado' | 'ativo' | 'inativo'
 
@@ -64,6 +66,7 @@ export async function desativarAvisos() {
 // Ao sair, cancela só no aparelho: o servidor apaga a inscrição quando o serviço de push
 // informar que ela expirou. Não chama a API porque a sessão pode já estar expirada.
 export async function cancelarInscricaoDoAparelho() {
+  if (ehAppNativo()) return desligarAvisosNoApp()
   const inscricao = await (await registroDoApp())?.pushManager.getSubscription()
   await inscricao?.unsubscribe()
 }

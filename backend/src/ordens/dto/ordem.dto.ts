@@ -10,6 +10,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { IsData } from '../../common/validacao.js';
@@ -50,6 +51,53 @@ export class CriarOrdemDto {
   @IsString()
   @MaxLength(2000)
   observacao?: string;
+}
+
+// Só os campos enviados são alterados. Nulo tira o motorista e o caminhão (a coleta volta a
+// ficar disponível), o peso estimado ou as observações; cliente, endereço e data não podem ser apagados.
+export class EditarOrdemDto {
+  @ValidateIf((o: EditarOrdemDto) => o.clienteId !== undefined)
+  @IsInt()
+  @IsPositive()
+  clienteId?: number;
+
+  @ValidateIf((o: EditarOrdemDto) => o.enderecoColeta !== undefined)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  enderecoColeta?: string;
+
+  @ValidateIf((o: EditarOrdemDto) => o.dataColeta !== undefined)
+  @IsData()
+  dataColeta?: string;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'peso estimado inválido' })
+  @IsPositive({ message: 'peso estimado deve ser maior que zero' })
+  @Max(99_999_999, { message: 'peso estimado inválido' })
+  pesoEstimadoKg?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  observacao?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  motoristaId?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  veiculoId?: number | null;
+}
+
+export class RegistrarPesoDto {
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'peso da balança inválido' })
+  @IsPositive({ message: 'peso da balança deve ser maior que zero' })
+  @Max(99_999_999, { message: 'peso da balança inválido' })
+  pesoRealKg: number;
 }
 
 export class AceitarColetaDto {

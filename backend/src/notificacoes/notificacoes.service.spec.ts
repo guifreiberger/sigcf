@@ -1,7 +1,9 @@
 import { Logger } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import { Perfil } from '../usuarios/perfil.enum.js';
+import type { AparelhoApp } from './aparelho-app.entity.js';
 import type { Aviso } from './avisos.js';
+import type { EnviadorFcm } from './enviador-fcm.js';
 import type { EnviadorPush } from './enviador-push.js';
 import type { InscricaoPush } from './inscricao-push.entity.js';
 import { NotificacoesService } from './notificacoes.service.js';
@@ -39,14 +41,24 @@ describe('NotificacoesService', () => {
     chavePublica: 'chave-vapid' as string | null,
     enviar: vi.fn(),
   };
+  const aparelhos = {
+    upsert: vi.fn(),
+    delete: vi.fn(),
+    findBy: vi.fn(),
+    find: vi.fn(),
+  };
+  const fcm = { ativo: false, enviar: vi.fn() };
   const service = new NotificacoesService(
     inscricoes as unknown as Repository<InscricaoPush>,
     enviador as unknown as EnviadorPush,
+    aparelhos as unknown as Repository<AparelhoApp>,
+    fcm as unknown as EnviadorFcm,
   );
 
   beforeEach(() => {
     vi.clearAllMocks();
     enviador.chavePublica = 'chave-vapid';
+    fcm.ativo = false;
   });
 
   it('expõe a chave pública VAPID para o navegador se inscrever', () => {
@@ -119,6 +131,88 @@ describe('NotificacoesService', () => {
       await expect(
         service.enviarParaUsuario(7, aviso),
       ).resolves.toBeUndefined();
+      expect(registro).toHaveBeenCalledWith(
+        expect.stringContaining('banco fora do ar'),
+      );
+      registro.mockRestore();
+    });
+  });
+
+  describe('aparelhos com o app Android', () => {
+    const aparelhoDoJoao = { id: 5, usuarioId: 7, token: 'token-do-joao' };
+    const aparelhoAntigo = { id: 6, usuarioId: 7, token: 'token-antigo' };
+
+    beforeEach(() => {
+      fcm.ativo = true;
+      inscricoes.findBy.mockResolvedValue([]);
+      inscricoes.find.mockResolvedValue([]);
+    });
+
+    it('registra o aparelho, transferindo-o se outro usuário entrou nele antes', async () => {
+      await service.registrarAparelho(7, 'token-do-joao');
+
+      expect(aparelhos.upsert).toHaveBeenCalledWith(
+        { usuarioId: 7, token: 'token-do-joao' },
+        ['token'],
+      );
+    });
+
+    it('remove só o aparelho do próprio usuário', async () => {
+      await service.removerAparelho(7, 'token-do-joao');
+
+      expect(aparelhos.delete).toHaveBeenCalledWith({
+        usuarioId: 7,
+        token: 'token-do-joao',
+      });
+    });
+
+    it('avisa o motorista também no app e apaga o aparelho que desinstalou', async () => {
+      aparelhos.findBy.mockResolvedValue([aparelhoDoJoao, aparelhoAntigo]);
+      fcm.enviar
+        .mockResolvedValueOnce('ENVIADO')
+        .mockResolvedValueOnce('EXPIRADO');
+
+      await service.enviarParaUsuario(7, aviso);
+
+      expect(aparelhos.findBy).toHaveBeenCalledWith({ usuarioId: 7 });
+      expect(fcm.enviar).toHaveBeenCalledWith('token-do-joao', aviso);
+      expect(aparelhos.delete).toHaveBeenCalledTimes(1);
+      expect(aparelhos.delete).toHaveBeenCalledWith({ id: 6 });
+    });
+
+    it('convida todos os motoristas ativos também pelo app', async () => {
+      aparelhos.find.mockResolvedValue([aparelhoDoJoao]);
+      fcm.enviar.mockResolvedValue('ENVIADO');
+
+      await service.enviarParaMotoristas(aviso);
+
+      expect(aparelhos.find).toHaveBeenCalledWith({
+        where: { usuario: { perfil: Perfil.MOTORISTA, ativo: true } },
+      });
+      expect(fcm.enviar).toHaveBeenCalledWith('token-do-joao', aviso);
+    });
+
+    it('não consulta os aparelhos quando o Firebase não está configurado', async () => {
+      fcm.ativo = false;
+
+      await service.enviarParaUsuario(7, aviso);
+
+      expect(aparelhos.findBy).not.toHaveBeenCalled();
+    });
+
+    it('avisa pelo app mesmo se o envio pelo navegador falhar, e vice-versa', async () => {
+      const registro = vi
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+      inscricoes.findBy.mockRejectedValue(new Error('banco fora do ar'));
+      aparelhos.findBy.mockResolvedValue([aparelhoDoJoao]);
+      fcm.enviar.mockResolvedValue('ENVIADO');
+
+      await expect(
+        service.enviarParaUsuario(7, aviso),
+      ).resolves.toBeUndefined();
+
+      expect(fcm.enviar).toHaveBeenCalledWith('token-do-joao', aviso);
       expect(registro).toHaveBeenCalledWith(
         expect.stringContaining('banco fora do ar'),
       );

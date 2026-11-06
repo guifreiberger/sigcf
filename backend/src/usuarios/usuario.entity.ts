@@ -2,9 +2,13 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
   UpdateDateColumn,
 } from 'typeorm';
+import { Veiculo } from '../veiculos/veiculo.entity.js';
 import { Perfil } from './perfil.enum.js';
 
 @Entity('usuario')
@@ -29,6 +33,14 @@ export class Usuario {
 
   @Column({ type: 'varchar', length: 20, nullable: true })
   cnh: string | null;
+
+  // Caminhão que o motorista costuma usar: vem preenchido ao criar uma ordem para ele (RF14).
+  @Column({ name: 'veiculo_padrao_id', type: 'int', nullable: true })
+  veiculoPadraoId: number | null;
+
+  @ManyToOne(() => Veiculo, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'veiculo_padrao_id' })
+  veiculoPadrao?: Relation<Veiculo> | null;
 
   @Column({ type: 'boolean', default: true })
   ativo: boolean;

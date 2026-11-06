@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import type { DataSourceOptions } from 'typeorm';
 import { Cliente } from '../clientes/cliente.entity.js';
 import { InscricaoPush } from '../notificacoes/inscricao-push.entity.js';
+import { AparelhoApp } from '../notificacoes/aparelho-app.entity.js';
 import { HistoricoStatus } from '../ordens/historico-status.entity.js';
 import { OrdemColeta } from '../ordens/ordem-coleta.entity.js';
 import { PontoTrajeto } from '../rastreamento/ponto-trajeto.entity.js';
@@ -30,6 +31,7 @@ export function opcoesTypeOrm(): DataSourceOptions {
       OrdemColeta,
       HistoricoStatus,
       InscricaoPush,
+      AparelhoApp,
       PontoTrajeto,
     ],
     migrations: [join(import.meta.dirname, 'migrations', '*.js')],

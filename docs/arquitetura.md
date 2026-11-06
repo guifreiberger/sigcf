@@ -18,14 +18,14 @@ flowchart TB
     gestor["<b>Gestor / atendente</b><br/>[Pessoa]<br/>Registra os pedidos, delega as coletas<br/>e acompanha a operação"]:::pessoa
     motorista["<b>Motorista</b><br/>[Pessoa]<br/>Executa as coletas e atualiza<br/>o status pelo celular"]:::pessoa
     sigcf["<b>SIGCF</b><br/>[Sistema de software]<br/>Ordens de coleta, acompanhamento da frota<br/>e inteligência sobre os pedidos"]:::sistema
-    push["<b>Serviços de push</b><br/>[Sistema externo]<br/>Google, Mozilla, Apple e Microsoft"]:::externo
+    push["<b>Serviços de push</b><br/>[Sistema externo]<br/>Web Push dos navegadores e Firebase<br/>Cloud Messaging (app Android)"]:::externo
     osm["<b>OpenStreetMap</b><br/>[Sistema externo]<br/>Mapa base"]:::externo
     mapas["<b>App de mapas do celular</b><br/>[Sistema externo]<br/>Navegação até o cliente"]:::externo
 
     cliente -- "Pede a coleta por telefone ou WhatsApp" --> gestor
     gestor -- "Cria ordens e acompanha as coletas<br/>[HTTPS]" --> sigcf
     motorista -- "Consulta e atualiza as coletas,<br/>compartilha a posição [HTTPS]" --> sigcf
-    sigcf -- "Envia avisos de coleta<br/>[Web Push]" --> push
+    sigcf -- "Envia avisos de coleta<br/>[Web Push e FCM]" --> push
     push -- "Entrega o aviso no celular" --> motorista
     sigcf -. "Carrega os tiles do mapa [HTTPS]" .-> osm
     motorista -. "Abre o endereço da coleta" .-> mapas
@@ -49,20 +49,26 @@ flowchart TB
         sw["<b>Service worker</b><br/>[Workbox]<br/>Cache do app e recebimento<br/>dos avisos com o app fechado"]:::container
         nginx["<b>Servidor web</b><br/>[nginx]<br/>Entrega os arquivos da aplicação,<br/>cabeçalhos de segurança e proxy de /api"]:::container
         api["<b>API</b><br/>[Node 22, NestJS 12, TypeORM]<br/>Regras de negócio, autenticação JWT,<br/>inteligência e rastreamento"]:::container
-        db[("<b>Banco de dados</b><br/>[MySQL 8, InnoDB]<br/>Cadastros, ordens, histórico,<br/>trajetos e inscrições de push")]:::container
+        db[("<b>Banco de dados</b><br/>[MySQL 8, InnoDB]<br/>Cadastros, ordens, histórico, trajetos,<br/>inscrições de push e aparelhos do app")]:::container
+        app["<b>App Android</b><br/>[Capacitor 8, mesmo frontend]<br/>Motorista: GPS em segundo plano<br/>e avisos pelo Firebase"]:::container
     end
 
     push["<b>Serviços de push</b><br/>[Sistema externo]"]:::externo
+    fcm["<b>Firebase Cloud Messaging</b><br/>[Sistema externo]"]:::externo
     osm["<b>OpenStreetMap</b><br/>[Sistema externo]"]:::externo
 
     gestor -- "Usa no navegador" --> spa
-    motorista -- "Usa no celular" --> spa
+    motorista -- "Usa no navegador do celular" --> spa
+    motorista -- "Usa no Android" --> app
+    app -- "Chama /api pelo HTTP nativo<br/>[HTTPS, JSON]" --> nginx
     spa -- "Carrega a aplicação e chama /api<br/>[HTTPS, JSON]" --> nginx
     nginx -- "Encaminha /api<br/>[HTTP]" --> api
     api -- "Lê e grava<br/>[SQL, TCP 3306]" --> db
     api -- "Envia avisos criptografados<br/>[Web Push, VAPID]" --> push
     push -- "Entrega" --> sw
     sw -- "Mostra a notificação" --> motorista
+    api -- "Envia avisos ao app<br/>[FCM HTTP v1, conta de serviço]" --> fcm
+    fcm -- "Entrega" --> app
     spa -- "Busca os tiles<br/>[HTTPS]" --> osm
 ```
 

@@ -1,3 +1,5 @@
+import { CapacitorHttp } from '@capacitor/core'
+import { ehAppNativo } from '../nativo/plataforma.ts'
 import type { Sessao } from './tipos.ts'
 
 const CHAVE_SESSAO = 'sigcf.sessao'
@@ -30,9 +32,38 @@ export function salvarSessao(sessao: Sessao | null) {
   else localStorage.removeItem(CHAVE_SESSAO)
 }
 
+type Metodo = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+
 interface Opcoes {
-  metodo?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  metodo?: Metodo
   corpo?: unknown
+}
+
+interface Resposta {
+  status: number
+  json: () => Promise<unknown>
+}
+
+// No navegador a API fica no mesmo endereço do site; o app Android traz o endereço completo
+// da API do seu ambiente (homologação ou produção), definido ao gerar o app.
+const enderecoDaApi = () => import.meta.env.VITE_API_URL || '/api'
+
+// No app Android, as chamadas saem pelo HTTP nativo: depois de alguns minutos em segundo plano,
+// o Android limita a internet da WebView, e o trajeto precisa continuar sendo enviado.
+async function transportar(url: string, metodo: Metodo, headers: Record<string, string>, corpo: unknown) {
+  if (ehAppNativo()) {
+    const { status, data } = await CapacitorHttp.request({ url, method: metodo, headers, data: corpo })
+    return {
+      status,
+      json: async () => (typeof data === 'string' ? JSON.parse(data || 'null') : data),
+    } satisfies Resposta
+  }
+  const resposta = await fetch(url, {
+    method: metodo,
+    headers,
+    body: corpo === undefined ? undefined : JSON.stringify(corpo),
+  })
+  return { status: resposta.status, json: () => resposta.json() } satisfies Resposta
 }
 
 export async function api<T>(caminho: string, { metodo = 'GET', corpo }: Opcoes = {}): Promise<T> {
@@ -41,28 +72,24 @@ export async function api<T>(caminho: string, { metodo = 'GET', corpo }: Opcoes 
   if (corpo !== undefined) headers['Content-Type'] = 'application/json'
   if (sessao) headers.Authorization = `Bearer ${sessao.token}`
 
-  let resposta: Response
+  let resposta: Resposta
   try {
-    resposta = await fetch(`/api${caminho}`, {
-      method: metodo,
-      headers,
-      body: corpo === undefined ? undefined : JSON.stringify(corpo),
-    })
+    resposta = await transportar(`${enderecoDaApi()}${caminho}`, metodo, headers, corpo)
   } catch {
     throw new ApiError(0, 'Sem conexão com o servidor. Verifique sua internet e tente novamente.')
   }
 
   if (resposta.status === 401 && sessao) aoExpirarSessao?.()
 
-  if (!resposta.ok) {
-    const erro = await resposta.json().catch(() => null)
+  if (resposta.status < 200 || resposta.status >= 300) {
+    const erro = (await resposta.json().catch(() => null)) as { message?: string | string[] } | null
     const mensagem = Array.isArray(erro?.message)
       ? erro.message.join('\n')
       : (erro?.message ?? `Erro ${resposta.status}`)
     throw new ApiError(resposta.status, mensagem)
   }
 
-  return resposta.status === 204 ? (undefined as T) : resposta.json()
+  return resposta.status === 204 ? (undefined as T) : ((await resposta.json()) as T)
 }
 
 export function montarQuery(parametros: Record<string, string | number | boolean | undefined>) {
