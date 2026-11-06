@@ -926,7 +926,8 @@ describe('OrdensService', () => {
       ],
     ])('recusa %s inexistente ou inativo', async (_, dto, mensagem) => {
       noBanco();
-      cadastrosEncontrados(new Map<unknown, unknown>([[Veiculo, veiculo]]));
+      // Nenhum cadastro encontrado; no caso do motorista, o caminhão enviado é o mesmo da ordem.
+      cadastrosEncontrados(new Map());
 
       await expect(service.editar(10, dto, gestor)).rejects.toThrow(
         new UnprocessableEntityException(mensagem),

@@ -908,6 +908,11 @@ describe('API do SIGCF (e2e)', () => {
       await editarOrdem('gestor', body.id, { motoristaId: ids.joao }).expect(
         400,
       );
+      // Cancela para não aparecer nas coletas disponíveis dos testes seguintes.
+      await alterarStatus('gestor', body.id, {
+        status: 'CANCELADA',
+        motivo: 'Teste de edição',
+      }).expect(200);
     });
   });
 
