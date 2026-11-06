@@ -707,6 +707,249 @@ describe('OrdensService', () => {
     });
   });
 
+  describe('editar (RF13)', () => {
+    const { AGUARDANDO, DISPONIVEL, EM_ANDAMENTO, CONCLUIDA } = StatusOrdem;
+    const outroVeiculo = { id: 5, placa: 'XYZ9A87', ativo: true };
+    const outroMotorista = {
+      id: 8,
+      nome: 'Pedro',
+      perfil: Perfil.MOTORISTA,
+      ativo: true,
+    };
+
+    function noBanco(dados: Partial<OrdemColeta> = {}, depois = dados) {
+      em.findOne.mockResolvedValue(ordemCom(dados));
+      ordens.findOne.mockResolvedValue(ordemCom(depois));
+    }
+
+    const historicoGravado = () =>
+      em.insert.mock.calls.find(
+        ([entidade]) => entidade === HistoricoStatus,
+      )?.[1];
+
+    it('trava a ordem, altera os dados e registra a edição no histórico', async () => {
+      noBanco();
+
+      await service.editar(
+        10,
+        {
+          dataColeta: '2026-11-06',
+          enderecoColeta: 'Portaria 2',
+          observacao: 'Ligar antes',
+        },
+        gestor,
+      );
+
+      expect(em.findOne).toHaveBeenCalledWith(OrdemColeta, {
+        where: { id: 10 },
+        lock: { mode: 'pessimistic_write' },
+      });
+      expect(em.update).toHaveBeenCalledWith(OrdemColeta, 10, {
+        dataColeta: '2026-11-06',
+        enderecoColeta: 'Portaria 2',
+        observacao: 'Ligar antes',
+      });
+      expect(historicoGravado()).toEqual({
+        ordemId: 10,
+        usuarioId: 1,
+        statusAnterior: AGUARDANDO,
+        statusNovo: AGUARDANDO,
+        motivo: 'Ordem editada: endereço, data e observações',
+      });
+    });
+
+    it('avisa o motorista quando a data ou o endereço da coleta dele mudam', async () => {
+      noBanco();
+
+      await service.editar(10, { dataColeta: '2026-11-06' }, gestor);
+
+      expect(notificacoes.enviarParaUsuario).toHaveBeenCalledWith(
+        7,
+        expect.objectContaining({ titulo: 'Coleta alterada' }),
+      );
+    });
+
+    it('não grava nem avisa quando nada mudou de fato', async () => {
+      noBanco({ observacao: 'Ligar antes' });
+
+      await service.editar(
+        10,
+        { observacao: 'Ligar antes', dataColeta: HOJE },
+        gestor,
+      );
+
+      expect(em.update).not.toHaveBeenCalled();
+      expect(em.insert).not.toHaveBeenCalled();
+      expect(notificacoes.enviarParaUsuario).not.toHaveBeenCalled();
+    });
+
+    it('troca o motorista e o caminhão, avisando quem ganhou e quem perdeu a coleta', async () => {
+      noBanco({}, { motoristaId: 8, veiculoId: 5 });
+      cadastrosEncontrados(
+        new Map<unknown, unknown>([
+          [Veiculo, outroVeiculo],
+          [Usuario, outroMotorista],
+        ]),
+      );
+
+      await service.editar(10, { motoristaId: 8, veiculoId: 5 }, gestor);
+
+      expect(em.findOneBy).toHaveBeenCalledWith(Usuario, {
+        id: 8,
+        perfil: Perfil.MOTORISTA,
+        ativo: true,
+      });
+      expect(em.update).toHaveBeenCalledWith(OrdemColeta, 10, {
+        motoristaId: 8,
+        veiculoId: 5,
+      });
+      expect(historicoGravado()).toMatchObject({
+        motivo: 'Ordem editada: motorista e caminhão',
+      });
+      expect(notificacoes.enviarParaUsuario).toHaveBeenCalledWith(
+        8,
+        expect.objectContaining({ titulo: 'Nova coleta para você' }),
+      );
+      expect(notificacoes.enviarParaUsuario).toHaveBeenCalledWith(
+        7,
+        expect.objectContaining({
+          titulo: 'Coleta passou para outro motorista',
+        }),
+      );
+    });
+
+    it('troca só o caminhão, mantendo o motorista', async () => {
+      noBanco({}, { veiculoId: 5 });
+      cadastrosEncontrados(
+        new Map<unknown, unknown>([[Veiculo, outroVeiculo]]),
+      );
+
+      await service.editar(10, { veiculoId: 5 }, gestor);
+
+      expect(em.update).toHaveBeenCalledWith(OrdemColeta, 10, { veiculoId: 5 });
+      expect(notificacoes.enviarParaUsuario).not.toHaveBeenCalled();
+    });
+
+    it('tira o motorista: a coleta volta a ficar disponível para todos', async () => {
+      noBanco({}, { status: DISPONIVEL, motoristaId: null, veiculoId: null });
+
+      await service.editar(10, { motoristaId: null, veiculoId: null }, gestor);
+
+      expect(em.update).toHaveBeenCalledWith(OrdemColeta, 10, {
+        motoristaId: null,
+        veiculoId: null,
+        status: DISPONIVEL,
+      });
+      expect(historicoGravado()).toMatchObject({
+        statusAnterior: AGUARDANDO,
+        statusNovo: DISPONIVEL,
+      });
+      expect(notificacoes.enviarParaMotoristas).toHaveBeenCalledWith(
+        expect.objectContaining({ titulo: 'Coleta disponível: quem pega?' }),
+      );
+      expect(notificacoes.enviarParaUsuario).toHaveBeenCalledWith(
+        7,
+        expect.objectContaining({
+          titulo: 'Coleta passou para outro motorista',
+        }),
+      );
+    });
+
+    it('entrega a coleta disponível ao motorista escolhido', async () => {
+      noBanco(
+        { status: DISPONIVEL, motoristaId: null, veiculoId: null },
+        { status: AGUARDANDO, motoristaId: 8, veiculoId: 5 },
+      );
+      cadastrosEncontrados(
+        new Map<unknown, unknown>([
+          [Veiculo, outroVeiculo],
+          [Usuario, outroMotorista],
+        ]),
+      );
+
+      await service.editar(10, { motoristaId: 8, veiculoId: 5 }, gestor);
+
+      expect(em.update).toHaveBeenCalledWith(OrdemColeta, 10, {
+        motoristaId: 8,
+        veiculoId: 5,
+        status: AGUARDANDO,
+      });
+      expect(notificacoes.enviarParaUsuario).toHaveBeenCalledWith(
+        8,
+        expect.objectContaining({ titulo: 'Nova coleta para você' }),
+      );
+    });
+
+    it('exige que a ordem fique com motorista e caminhão, ou sem nenhum dos dois', async () => {
+      noBanco({ status: DISPONIVEL, motoristaId: null, veiculoId: null });
+
+      await expect(
+        service.editar(10, { motoristaId: 8 }, gestor),
+      ).rejects.toThrow(BadRequestException);
+      expect(em.update).not.toHaveBeenCalled();
+    });
+
+    it('com a coleta em andamento, só deixa alterar as observações', async () => {
+      noBanco({ status: EM_ANDAMENTO });
+
+      await expect(
+        service.editar(10, { dataColeta: '2026-11-06' }, gestor),
+      ).rejects.toThrow(
+        new ConflictException(
+          'Com a coleta em andamento, só as observações podem ser alteradas.',
+        ),
+      );
+
+      await service.editar(10, { observacao: 'Portão lateral' }, gestor);
+      expect(em.update).toHaveBeenCalledWith(OrdemColeta, 10, {
+        observacao: 'Portão lateral',
+      });
+    });
+
+    it('não edita coleta finalizada', async () => {
+      noBanco({ status: CONCLUIDA });
+
+      await expect(
+        service.editar(10, { observacao: 'x' }, gestor),
+      ).rejects.toThrow(
+        new ConflictException('Coleta finalizada não pode ser editada.'),
+      );
+    });
+
+    it.each([
+      ['cliente', { clienteId: 99 }, 'Cliente não encontrado ou inativo.'],
+      ['caminhão', { veiculoId: 99 }, 'Veículo não encontrado ou inativo.'],
+      [
+        'motorista',
+        { motoristaId: 99, veiculoId: 4 },
+        'Motorista não encontrado ou inativo.',
+      ],
+    ])('recusa %s inexistente ou inativo', async (_, dto, mensagem) => {
+      noBanco();
+      cadastrosEncontrados(new Map<unknown, unknown>([[Veiculo, veiculo]]));
+
+      await expect(service.editar(10, dto, gestor)).rejects.toThrow(
+        new UnprocessableEntityException(mensagem),
+      );
+    });
+
+    it('recusa mudar a data para o passado', async () => {
+      noBanco();
+
+      await expect(
+        service.editar(10, { dataColeta: '2026-11-03' }, gestor),
+      ).rejects.toThrow(UnprocessableEntityException);
+    });
+
+    it('lança NotFound para ordem inexistente', async () => {
+      em.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.editar(99, { observacao: 'x' }, gestor),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('resumo', () => {
     function linhasDoBanco(linhas: { status: StatusOrdem; total: string }[]) {
       const consulta = {

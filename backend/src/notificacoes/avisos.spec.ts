@@ -1,6 +1,8 @@
 import {
+  avisoColetaAlterada,
   avisoColetaCancelada,
   avisoColetaDisponivel,
+  avisoColetaReatribuida,
   avisoNovaColeta,
   quando,
 } from './avisos.js';
@@ -34,6 +36,24 @@ describe('avisos de notificação', () => {
     expect(avisoColetaDisponivel(ordem, hoje)).toEqual({
       titulo: 'Coleta disponível: quem pega?',
       corpo: 'Malharia, hoje · cerca de 1.235 kg\nRua A, 1',
+      url: '/motorista',
+      tag: 'ordem-7',
+    });
+  });
+
+  it('avisa o motorista quando a coleta dele muda de data ou de endereço', () => {
+    expect(avisoColetaAlterada(ordem, hoje)).toEqual({
+      titulo: 'Coleta alterada',
+      corpo: 'Malharia, hoje · cerca de 1.235 kg\nRua A, 1',
+      url: '/motorista',
+      tag: 'ordem-7',
+    });
+  });
+
+  it('avisa o motorista que perdeu a coleta para outro, substituindo o aviso anterior', () => {
+    expect(avisoColetaReatribuida(ordem, hoje)).toEqual({
+      titulo: 'Coleta passou para outro motorista',
+      corpo: 'Malharia, hoje',
       url: '/motorista',
       tag: 'ordem-7',
     });

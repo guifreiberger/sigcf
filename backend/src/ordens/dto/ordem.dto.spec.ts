@@ -5,6 +5,7 @@ import {
   AceitarColetaDto,
   AlterarStatusDto,
   CriarOrdemDto,
+  EditarOrdemDto,
   FiltroOrdensDto,
 } from './ordem.dto.js';
 
@@ -78,6 +79,47 @@ describe('DTOs de ordem de coleta', () => {
       });
 
       expect(campos(erros)).toEqual(['enderecoColeta']);
+    });
+  });
+
+  describe('EditarOrdemDto', () => {
+    it('aceita alterar um campo só', async () => {
+      expect(
+        campos(
+          (await validar(EditarOrdemDto, { dataColeta: '2026-11-10' })).erros,
+        ),
+      ).toEqual([]);
+    });
+
+    it('aceita nulo para tirar motorista, caminhão, peso estimado e observações', async () => {
+      const { erros } = await validar(EditarOrdemDto, {
+        motoristaId: null,
+        veiculoId: null,
+        pesoEstimadoKg: null,
+        observacao: null,
+      });
+
+      expect(erros).toEqual([]);
+    });
+
+    it('recusa apagar cliente, endereço ou data', async () => {
+      const { erros } = await validar(EditarOrdemDto, {
+        clienteId: null,
+        enderecoColeta: null,
+        dataColeta: null,
+      });
+
+      expect(campos(erros).sort()).toEqual([
+        'clienteId',
+        'dataColeta',
+        'enderecoColeta',
+      ]);
+    });
+
+    it('não deixa mudar o status pela edição', async () => {
+      const { erros } = await validar(EditarOrdemDto, { status: 'CONCLUIDA' });
+
+      expect(campos(erros)).toEqual(['status']);
     });
   });
 

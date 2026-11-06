@@ -121,6 +121,19 @@ describe('trajeto da coleta (RF11)', () => {
       ).toEqual({ inicio: quando(10), fim: quando(20) });
     });
 
+    it('não encerra a corrida quando o gestor edita as observações durante a coleta', () => {
+      expect(
+        periodoDaCorrida(
+          historico(
+            [null, AGUARDANDO, 0],
+            [AGUARDANDO, EM_ANDAMENTO, 10],
+            [EM_ANDAMENTO, EM_ANDAMENTO, 15],
+            [EM_ANDAMENTO, CONCLUIDA, 52],
+          ),
+        ),
+      ).toEqual({ inicio: quando(10), fim: quando(52) });
+    });
+
     it('fica sem fim enquanto a coleta está em andamento', () => {
       expect(
         periodoDaCorrida(

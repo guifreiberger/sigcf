@@ -837,6 +837,80 @@ describe('API do SIGCF (e2e)', () => {
     });
   });
 
+  describe('RF13 — edição de ordens', () => {
+    let ordem: number;
+    const editarOrdem = (quem: Quem, id: number, corpo: object) =>
+      api().patch(`/api/ordens/${id}`).set(como(quem)).send(corpo);
+    const idsDasMinhas = async (quem: Quem) =>
+      (
+        await api().get('/api/ordens/minhas').set(como(quem)).expect(200)
+      ).body.map((o: { id: number }) => o.id);
+
+    beforeAll(async () => {
+      const { body } = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send(novaOrdem())
+        .expect(201);
+      ordem = body.id;
+    });
+
+    it('somente o gestor edita', () =>
+      editarOrdem('joao', ordem, { observacao: 'x' }).expect(403));
+
+    it('edita os dados e registra a edição no histórico', async () => {
+      const res = await editarOrdem('gestor', ordem, {
+        enderecoColeta: 'Portaria 2',
+        observacao: 'Ligar antes',
+      }).expect(200);
+
+      expect(res.body).toMatchObject({
+        enderecoColeta: 'Portaria 2',
+        observacao: 'Ligar antes',
+      });
+      expect(res.body.historico.at(-1)).toMatchObject({
+        statusAnterior: 'AGUARDANDO',
+        statusNovo: 'AGUARDANDO',
+        motivo: 'Ordem editada: endereço e observações',
+      });
+    });
+
+    it('passa a coleta para outro motorista', async () => {
+      await editarOrdem('gestor', ordem, {
+        motoristaId: ids.maria,
+        veiculoId: ids.veiculo,
+      }).expect(200);
+
+      expect(await idsDasMinhas('maria')).toContain(ordem);
+      expect(await idsDasMinhas('joao')).not.toContain(ordem);
+    });
+
+    it('com a coleta em andamento, só aceita mudar as observações', async () => {
+      await alterarStatus('maria', ordem, { status: 'EM_ANDAMENTO' }).expect(
+        200,
+      );
+
+      await editarOrdem('gestor', ordem, {
+        dataColeta: somarDias(hoje(), 1),
+      }).expect(409);
+      await editarOrdem('gestor', ordem, {
+        observacao: 'Portão lateral',
+      }).expect(200);
+    });
+
+    it('não deixa a ordem com motorista sem caminhão', async () => {
+      const { body } = await api()
+        .post('/api/ordens')
+        .set(como('gestor'))
+        .send({ clienteId: ids.cliente, dataColeta: hoje() })
+        .expect(201);
+
+      await editarOrdem('gestor', body.id, { motoristaId: ids.joao }).expect(
+        400,
+      );
+    });
+  });
+
   describe('RF12 — coleta disponível, quem pega?', () => {
     let ordem: number;
     const aparelhos = {
