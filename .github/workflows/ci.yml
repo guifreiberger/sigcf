@@ -93,6 +93,33 @@ jobs:
           name: cobertura-frontend
           path: frontend/coverage/lcov.info
 
+  # Código nativo do app Android: a fila e o envio do trajeto (ADR 0010).
+  android:
+    name: App Android
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --ignore-scripts
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      # O projeto Android usa os plugins do Capacitor instalados pelo npm e gerados pelo sync.
+      - name: Gera o projeto Android
+        run: npm run build && npx cap sync android
+      - name: Testes unitários e lint do app
+        working-directory: frontend/android
+        run: ./gradlew testHomologacaoDebugUnitTest lintHomologacaoDebug --no-daemon
+
   imagens:
     name: Imagens Docker
     runs-on: ubuntu-latest
