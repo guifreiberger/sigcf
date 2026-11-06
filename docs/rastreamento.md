@@ -27,19 +27,21 @@ sequenceDiagram
 
 O motorista pode usar o SIGCF de dois jeitos. No **app Android**, o trajeto continua sendo gravado com a tela apagada ou com ele em outros apps, como o Waze e o WhatsApp ([ADR 0009](adr/0009-app-android-com-capacitor.md)). No **navegador** (inclusive no iPhone), o trajeto só é gravado com o SIGCF aberto na tela.
 
-- **App Android:** ao iniciar a coleta, liga um serviço do Android que mantém o GPS ativo e mostra a notificação fixa "SIGCF: coleta em andamento". Na primeira vez, o celular pede as permissões de localização ("durante o uso do app" basta) e de notificação. As posições são enviadas pelo HTTP nativo, que o Android não limita em segundo plano, e o envio parte da própria leitura do GPS. O serviço desliga ao concluir, reportar falha ou quando o servidor informa que a coleta foi cancelada.
+- **App Android:** ao iniciar a coleta, liga um serviço do Android que mantém o GPS ativo e mostra a notificação fixa "SIGCF: coleta em andamento". Na primeira vez, o celular pede as permissões de localização ("durante o uso do app" basta) e de notificação. As posições são enviadas pelo HTTP nativo, que o Android não limita em segundo plano, e o envio parte da própria leitura do GPS. Cada chamada tem tempo-limite (15 s para conectar e 20 s para responder): sem ele, o Android esperava para sempre por uma conexão que caiu, como na troca do Wi-Fi para o 4G, e a fila parava de ser enviada até o app ser fechado. O serviço desliga ao concluir, reportar falha ou quando o servidor informa que a coleta foi cancelada.
 
 - **Quando começa e termina:** o rastreamento liga sozinho enquanto o motorista tem alguma coleta **em andamento** e desliga quando ela é concluída, reportada como falha ou cancelada pelo gestor. Não há botão para ligar fora de uma coleta.
 - **Leitura:** a posição vem da [API de Geolocalização](https://developer.mozilla.org/docs/Web/API/Geolocation/watchPosition) do navegador, com alta precisão. É guardada no máximo **uma leitura a cada 10 segundos**, o suficiente para desenhar o caminho sem gastar bateria e dados à toa.
 - **Recuperação do GPS:** num teste de campo em um Android, o acompanhamento contínuo (`watchPosition`) parou de entregar leituras sem avisar, depois que a tela apagou ou o app saiu da frente. Enquanto isso, o pedido avulso de posição (`getCurrentPosition`), usado nas mudanças de status, seguia funcionando. Por isso, se nenhuma leitura chega em 20 segundos, o app refaz o acompanhamento e pede uma posição avulsa, repetindo a cada 10 segundos até as leituras voltarem. O mesmo acontece assim que o motorista volta para o app.
-- **Envio:** as leituras ficam numa fila salva no aparelho e são enviadas em **lotes a cada 15 segundos**. Sem sinal, a fila cresce (até cerca de 5 horas de leituras) e é enviada quando a conexão volta. Antes de concluir ou reportar falha, o app envia o que estiver na fila, porque depois disso o servidor não aceita mais pontos daquela coleta.
+- **Envio:** as leituras ficam numa fila salva no aparelho e são enviadas em **lotes a cada 15 segundos**. Sem sinal, a fila cresce (até cerca de 5 horas de leituras) e é enviada quando a conexão volta. Antes de concluir ou reportar falha, o app envia o que estiver na fila. O que não sair a tempo ainda é aceito depois, porque o servidor usa o horário da leitura, e não o da chegada (ver abaixo).
 - **Tela ligada (navegador):** durante a coleta, o navegador usa a [API Screen Wake Lock](https://developer.mozilla.org/docs/Web/API/Screen_Wake_Lock_API) para a tela não apagar. Se o motorista sair do app, a trava cai e é pedida de novo quando ele volta.
 - **Transparência:** enquanto compartilha a posição, a tela mostra o aviso "Compartilhando sua localização com o gestor". Se nenhuma posição chega em 30 segundos, o aviso muda para "Procurando o sinal do GPS…", para o motorista não achar que está sendo acompanhado quando não está. Se o GPS estiver bloqueado, a tela orienta a liberar, e a coleta segue funcionando normalmente, apenas sem trajeto.
 
 ## No servidor
 
-- `POST /rastreamento/pontos` só aceita leituras do **próprio motorista** e só enquanto ele tem coleta em andamento. Os pontos são gravados em cada coleta em andamento dele; sem nenhuma, a resposta é **409**, e o celular descarta a fila.
-- Cada leitura guarda o **horário do celular** (`registrado_em`), não o do envio. Assim, lotes que chegam atrasados por falta de sinal entram na ordem certa.
+- `POST /rastreamento/pontos` só aceita leituras do **próprio motorista**, feitas durante uma coleta dele.
+- Cada leitura guarda o **horário do celular** (`registrado_em`), não o do envio, e vai para a coleta que estava em andamento **nesse horário**, mesmo que chegue depois de a coleta terminar. Nesse caso, a distância gravada na ordem é recalculada. Uma tolerância de 1 minuto cobre a diferença entre o relógio do celular e o do servidor.
+- Leituras de fora de qualquer coleta do motorista são descartadas. Se nenhuma leitura do lote serve e ele não tem coleta em andamento, a resposta é **409**, e o celular descarta a fila.
+- Antes, o servidor gravava cada lote na coleta em andamento na hora da chegada. Num teste de campo em 06/11/2026, o envio travou quando o celular trocou o Wi-Fi pelo 4G, e as leituras de uma coleta só chegaram durante a coleta seguinte, que ficou com o trajeto e a distância da anterior.
 - Só o **gestor** consulta os trajetos (`GET /rastreamento/em-rota` e `GET /rastreamento/ordens/:id`).
 
 ## Cálculos
@@ -53,14 +55,14 @@ O motorista pode usar o SIGCF de dois jeitos. No **app Android**, o trajeto cont
 | Duração | Fim − início; enquanto a coleta está em andamento, agora − início |
 | Última posição | Ponto confiável mais recente |
 
-A duração e a distância são calculadas a partir dos dados gravados (histórico e pontos), sem colunas duplicadas na ordem.
+Enquanto a coleta está em andamento, a duração e a distância são calculadas a partir do histórico e dos pontos. Quando ela termina, as duas ficam gravadas na ordem, para o dashboard e o relatório; leituras que chegam depois atualizam a distância.
 
 ## Privacidade (LGPD)
 
 A localização do motorista é dado pessoal. O tratamento segue os princípios do art. 6º da LGPD:
 
 - **Finalidade (I):** acompanhar a execução da coleta e comprovar o atendimento ao cliente. Os pontos não são usados para outra análise.
-- **Necessidade (III):** a coleta da posição se limita ao período da corrida. Fora de uma coleta em andamento, o servidor recusa pontos mesmo que o aparelho os envie.
+- **Necessidade (III):** a coleta da posição se limita ao período da corrida. Leituras feitas fora das coletas do motorista são recusadas ou descartadas pelo servidor, mesmo que o aparelho as envie.
 - **Transparência (VI):** o motorista vê na tela quando está compartilhando a posição, e o aviso geral da tela explica que a localização só é compartilhada durante a coleta.
 - **Segurança (VII):** o acesso aos trajetos é restrito ao perfil gestor e passa pela mesma autenticação JWT do restante da API.
 
