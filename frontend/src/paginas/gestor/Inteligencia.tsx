@@ -40,19 +40,14 @@ function Proxima({ analise }: { analise: AnaliseCliente }) {
   return <>—</>
 }
 
-export function Inteligencia() {
+// Alertas e padrões de pedidos de cada cliente (RF09), calculados a partir das coletas dos
+// últimos 12 meses. Aparece no dashboard, abaixo dos indicadores do período.
+export function PadroesDosClientes() {
   const analise = useInteligencia()
   const dados = analise.data
 
   return (
     <>
-      <header className="pagina__topo">
-        <div>
-          <h1>Inteligência</h1>
-          <p className="texto-suave">Padrões de cada cliente, calculados a partir das coletas dos últimos 12 meses.</p>
-        </div>
-      </header>
-
       <MensagemErro erro={analise.error} />
 
       {analise.isPending ? (

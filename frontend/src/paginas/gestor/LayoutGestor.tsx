@@ -1,10 +1,11 @@
 import {
   Building2,
+  ChartColumn,
   ClipboardList,
+  FileSpreadsheet,
   LayoutDashboard,
   LogOut,
   type LucideIcon,
-  Sparkles,
   Truck,
   Users,
 } from 'lucide-react'
@@ -14,8 +15,9 @@ import { iniciais } from '../../util/formatos.ts'
 
 const LINKS: { para: string; rotulo: string; icone: LucideIcon; exato?: boolean }[] = [
   { para: '/gestor', rotulo: 'Painel do dia', icone: LayoutDashboard, exato: true },
-  { para: '/gestor/inteligencia', rotulo: 'Inteligência', icone: Sparkles },
+  { para: '/gestor/dashboard', rotulo: 'Dashboard', icone: ChartColumn },
   { para: '/gestor/ordens', rotulo: 'Ordens de coleta', icone: ClipboardList },
+  { para: '/gestor/relatorios', rotulo: 'Relatórios', icone: FileSpreadsheet },
   { para: '/gestor/motoristas', rotulo: 'Motoristas', icone: Users },
   { para: '/gestor/veiculos', rotulo: 'Veículos', icone: Truck },
   { para: '/gestor/clientes', rotulo: 'Clientes', icone: Building2 },

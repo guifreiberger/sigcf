@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, montarQuery } from './cliente.ts'
 import type {
   Cliente,
+  Dashboard,
+  LinhaRelatorio,
   Inteligencia,
   Localizacao,
   Motorista,
@@ -156,6 +158,28 @@ export function useRegistrarPeso() {
     mutationFn: ({ id, pesoRealKg }: { id: number; pesoRealKg: number }) =>
       api<Ordem>(`/ordens/${id}/peso`, { metodo: 'PATCH', corpo: { pesoRealKg } }),
     onSuccess: (ordem) => atualizarOrdemNoCache(queryClient, ordem),
+  })
+}
+
+export function useDashboard(de: string, ate: string) {
+  return useQuery({
+    queryKey: ['dashboard', de, ate],
+    queryFn: () => api<Dashboard>(`/relatorios/dashboard${montarQuery({ de, ate })}`),
+  })
+}
+
+export interface FiltrosRelatorio {
+  de: string
+  ate: string
+  motoristaId?: number
+  clienteId?: number
+  status?: StatusOrdem
+}
+
+export function useRelatorioDeColetas() {
+  return useMutation({
+    mutationFn: (filtros: FiltrosRelatorio) =>
+      api<LinhaRelatorio[]>(`/relatorios/coletas${montarQuery({ ...filtros })}`),
   })
 }
 

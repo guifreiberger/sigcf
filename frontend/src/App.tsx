@@ -5,11 +5,12 @@ import { useAuth } from './auth/useAuth.ts'
 import { Clientes, Motoristas, Veiculos } from './paginas/gestor/Cadastros.tsx'
 import { DetalheOrdem } from './paginas/gestor/DetalheOrdem.tsx'
 import { EditarOrdem } from './paginas/gestor/EditarOrdem.tsx'
-import { Inteligencia } from './paginas/gestor/Inteligencia.tsx'
+import { Dashboard } from './paginas/gestor/Dashboard.tsx'
 import { LayoutGestor } from './paginas/gestor/LayoutGestor.tsx'
 import { NovaOrdem } from './paginas/gestor/NovaOrdem.tsx'
 import { Ordens } from './paginas/gestor/Ordens.tsx'
 import { Painel } from './paginas/gestor/Painel.tsx'
+import { Relatorios } from './paginas/gestor/Relatorios.tsx'
 import { Login } from './paginas/Login.tsx'
 import { MinhasColetas } from './paginas/motorista/MinhasColetas.tsx'
 
@@ -26,7 +27,10 @@ export default function App() {
       <Route element={<RotaProtegida perfil="GESTOR" />}>
         <Route path="/gestor" element={<LayoutGestor />}>
           <Route index element={<Painel />} />
-          <Route path="inteligencia" element={<Inteligencia />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          {/* Endereço antigo da tela de inteligência, que virou parte do dashboard. */}
+          <Route path="inteligencia" element={<Navigate to="/gestor/dashboard" replace />} />
+          <Route path="relatorios" element={<Relatorios />} />
           <Route path="ordens" element={<Ordens />} />
           <Route path="ordens/nova" element={<NovaOrdem />} />
           <Route path="ordens/:id" element={<DetalheOrdem />} />
