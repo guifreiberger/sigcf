@@ -84,6 +84,32 @@ describe('NovaOrdem', () => {
     expect(corpo).not.toHaveProperty('veiculoId')
   })
 
+  it('preenche o caminhão padrão do motorista escolhido, mas deixa trocar', async () => {
+    apiFalsa({
+      ...cadastros,
+      'GET /veiculos?ativo=true': {
+        corpo: [
+          { id: 4, placa: 'ABC1234', modelo: 'VW Delivery', capacidadeKg: 5000, ativo: true },
+          { id: 5, placa: 'MHK4521', modelo: 'Accelo', capacidadeKg: 5200, ativo: true },
+        ],
+      },
+      'GET /motoristas?ativo=true': {
+        corpo: [{ id: 7, nome: 'João da Silva', email: 'joao@sigcf.local', perfil: 'MOTORISTA', veiculoPadraoId: 5, ativo: true }],
+      },
+    })
+    abrir()
+
+    await screen.findByRole('option', { name: 'João da Silva' })
+    await userEvent.selectOptions(screen.getByLabelText('Motorista'), 'João da Silva')
+
+    expect(screen.getByLabelText('Veículo')).toHaveValue('5')
+    expect(screen.getByText('Caminhão padrão de João da Silva')).toBeInTheDocument()
+
+    await userEvent.selectOptions(screen.getByLabelText('Veículo'), 'ABC-1234 — VW Delivery (5.000 kg)')
+    expect(screen.getByLabelText('Veículo')).toHaveValue('4')
+    expect(screen.queryByText('Caminhão padrão de João da Silva')).not.toBeInTheDocument()
+  })
+
   it('permite trocar o endereço sugerido', async () => {
     const fetchFalso = apiFalsa({ ...cadastros, 'POST /ordens': { status: 201, corpo: { id: 42 } } })
     abrir()
