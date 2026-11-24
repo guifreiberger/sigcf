@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { lerSessao } from '../../api/cliente.ts'
@@ -11,16 +11,19 @@ import { MinhasColetas } from './MinhasColetas.tsx'
 // Por padrão a tela roda como no navegador; os testes do app Android ligam o modo nativo.
 const app = vi.hoisted(() => ({
   nativo: false,
-  aoFalhar: null as ((motivo: 'sem-permissao' | 'outro') => void) | null,
+  semPermissao: false,
   abrirConfiguracoes: vi.fn(),
 }))
 vi.mock('../../nativo/plataforma.ts', () => ({ ehAppNativo: () => app.nativo }))
 vi.mock('../../nativo/avisosNoApp.ts', () => ({ ativarAvisosNoApp: async () => 'ativo' }))
-vi.mock('../../nativo/gpsEmSegundoPlano.ts', () => ({
-  acompanharEmSegundoPlano: (_aoLer: unknown, aoFalhar: typeof app.aoFalhar) => {
-    app.aoFalhar = aoFalhar
-    return () => {}
+// Serviço de rastreamento do app falso: liga, a não ser que a localização tenha sido negada.
+vi.mock('../../nativo/rastreamento.ts', () => ({
+  iniciarRastreamentoNativo: async () => {
+    if (app.semPermissao) throw Object.assign(new Error('negada'), { code: 'SEM_PERMISSAO' })
   },
+  pararRastreamentoNativo: async () => undefined,
+  estadoDoRastreamentoNativo: async () => ({ ativo: true, pendentes: 0, ultimaLeitura: null, encerradaNoServidor: false }),
+  enviarPendentesNativos: async () => ({ pendentes: 0 }),
   abrirConfiguracoesDoApp: app.abrirConfiguracoes,
 }))
 
@@ -261,6 +264,7 @@ describe('MinhasColetas', () => {
 
       afterEach(() => {
         app.nativo = false
+        app.semPermissao = false
         app.abrirConfiguracoes.mockReset()
       })
 
@@ -273,11 +277,10 @@ describe('MinhasColetas', () => {
       })
 
       it('leva às configurações do app quando a localização não foi liberada', async () => {
+        app.semPermissao = true
         apiFalsa({ [MINHAS]: { corpo: [emAndamento] } })
         abrir()
-        await screen.findByText('Malwee')
 
-        act(() => app.aoFalhar?.('sem-permissao'))
         await userEvent.click(await screen.findByRole('button', { name: 'Abrir configurações' }))
 
         expect(app.abrirConfiguracoes).toHaveBeenCalled()

@@ -159,8 +159,23 @@ describe('cliente da API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-motorista' },
         data: { pontos: [] },
+        connectTimeout: 15_000,
+        readTimeout: 20_000,
       })
       expect(fetchFalso).not.toHaveBeenCalled()
+    })
+
+    // Sem tempo-limite, o Android espera para sempre por uma conexão que caiu (ex.: ao trocar
+    // do Wi-Fi para o 4G) e a fila do trajeto para de ser enviada até o app ser fechado.
+    it('desiste de uma chamada presa numa conexão que caiu, para a próxima tentativa sair', async () => {
+      httpNativo.mockRejectedValue(new Error('SocketTimeoutException: Read timed out'))
+
+      await expect(api('/rastreamento/pontos', { metodo: 'POST', corpo: { pontos: [] } })).rejects.toMatchObject({
+        status: 0,
+      })
+      expect(httpNativo).toHaveBeenCalledWith(
+        expect.objectContaining({ connectTimeout: expect.any(Number), readTimeout: expect.any(Number) }),
+      )
     })
 
     it('entende o JSON que chega como texto', async () => {

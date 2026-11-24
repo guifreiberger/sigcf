@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { type ObjectLiteral, Repository } from 'typeorm';
 import { Perfil } from '../usuarios/perfil.enum.js';
 import { AparelhoApp } from './aparelho-app.entity.js';
 import type { Aviso } from './avisos.js';
@@ -12,6 +12,24 @@ import { InscricaoPush } from './inscricao-push.entity.js';
 const MOTORISTAS_ATIVOS = {
   where: { usuario: { perfil: Perfil.MOTORISTA, ativo: true } },
 };
+
+// Grava o registro ou, se a chave única já existe, atualiza as colunas dadas. O upsert do
+// TypeORM dava erro 500 no MySQL quando o registro já existia igual, o que acontece a cada
+// vez que o app abre: ele tentava reler um id que o banco não devolve nesse caso.
+function gravarOuAtualizar<T extends ObjectLiteral>(
+  repositorio: Repository<T>,
+  valores: Partial<T>,
+  colunas: string[],
+  chave: string[],
+) {
+  return repositorio
+    .createQueryBuilder()
+    .insert()
+    .values(valores)
+    .orUpdate(colunas, chave)
+    .updateEntity(false)
+    .execute();
+}
 
 // Onde procurar os destinos de um aviso: inscrições do navegador e aparelhos com o app.
 interface Destinos {
@@ -37,13 +55,15 @@ export class NotificacoesService {
   }
 
   async inscrever(usuarioId: number, dto: InscricaoPushDto) {
-    await this.inscricoes.upsert(
+    await gravarOuAtualizar(
+      this.inscricoes,
       {
         usuarioId,
         endpoint: dto.endpoint,
         p256dh: dto.keys.p256dh,
         auth: dto.keys.auth,
       },
+      ['usuario_id', 'p256dh', 'auth'],
       ['endpoint'],
     );
   }
@@ -53,7 +73,12 @@ export class NotificacoesService {
   }
 
   async registrarAparelho(usuarioId: number, token: string) {
-    await this.aparelhos.upsert({ usuarioId, token }, ['token']);
+    await gravarOuAtualizar(
+      this.aparelhos,
+      { usuarioId, token },
+      ['usuario_id'],
+      ['token'],
+    );
   }
 
   async removerAparelho(usuarioId: number, token: string) {

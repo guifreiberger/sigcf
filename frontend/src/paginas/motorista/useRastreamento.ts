@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, ApiError } from '../../api/cliente.ts'
+import { api, ApiError, enderecoDaApi, lerSessao } from '../../api/cliente.ts'
 import type { PontoTrajeto } from '../../api/tipos.ts'
-import { acompanharEmSegundoPlano, type LeituraGps } from '../../nativo/gpsEmSegundoPlano.ts'
 import { ehAppNativo } from '../../nativo/plataforma.ts'
+import {
+  enviarPendentesNativos,
+  estadoDoRastreamentoNativo,
+  iniciarRastreamentoNativo,
+  pararRastreamentoNativo,
+} from '../../nativo/rastreamento.ts'
 
 const INTERVALO_ENVIO_MS = 15_000
 // Uma leitura a cada 10 s desenha bem o trajeto sem gastar bateria e dados à toa.
@@ -18,6 +23,16 @@ const SEM_LEITURA_MS = 20_000
 const SEM_SINAL_MS = 30_000
 const OPCOES_GPS: PositionOptions = { enableHighAccuracy: true, maximumAge: 5_000, timeout: 30_000 }
 const OPCOES_AVULSA: PositionOptions = { enableHighAccuracy: true, maximumAge: 5_000, timeout: 10_000 }
+// No app, de quanto em quanto tempo a tela pergunta ao serviço como está o rastreamento.
+const INTERVALO_ESTADO_MS = 5_000
+
+interface LeituraGps {
+  latitude: number
+  longitude: number
+  precisaoMetros: number
+  // Momento da leitura no aparelho, em milissegundos.
+  registradoEm: number
+}
 
 export type EstadoRastreamento = 'desligado' | 'aguardando-gps' | 'compartilhando' | 'sem-gps'
 
@@ -41,13 +56,16 @@ function salvarPendentes(pontos: PontoTrajeto[]) {
 const arredondar = (valor: number) => Number(valor.toFixed(6))
 
 // Compartilha a posição do motorista com o gestor enquanto houver coleta em andamento (RF11).
-// As leituras ficam numa fila salva no aparelho e são enviadas em lotes, para não se perderem
-// quando o sinal cai no caminho. No app Android, o GPS segue com a tela apagada; no navegador,
-// só com o app aberto.
+// No app Android, um serviço do próprio app grava e envia o trajeto, com a tela apagada e o
+// celular fora da tomada (ADR 0010); esta tela só o liga, desliga e mostra o que ele informa.
+// No navegador, o GPS só funciona com o app aberto, e as leituras ficam numa fila salva no
+// aparelho, enviada em lotes, para não se perderem quando o sinal cai no caminho.
 export function useRastreamento(ativo: boolean, aoEncerrarNoServidor?: () => void) {
   const [filaInicial] = useState(lerPendentes)
   const fila = useRef(filaInicial)
   const [pendentes, setPendentes] = useState(filaInicial.length)
+  const [pendentesNoApp, setPendentesNoApp] = useState(0)
+  const servicoLigado = useRef(false)
   const [leitura, setLeitura] = useState<'aguardando-gps' | 'compartilhando' | 'sem-gps'>('aguardando-gps')
   const envio = useRef<Promise<void> | null>(null)
   const ultimaLeitura = useRef(-Infinity)
@@ -87,8 +105,7 @@ export function useRastreamento(ativo: boolean, aoEncerrarNoServidor?: () => voi
   }, [atualizarFila])
 
   // Guarda no máximo uma leitura a cada 10 s e, passados 15 s do último envio, já envia.
-  // Enviar a partir da própria leitura importa no app: em segundo plano o Android congela os
-  // relógios da tela, mas o GPS continua chamando esta função.
+  // Enviar a partir da própria leitura não depende dos relógios da tela, que o celular atrasa.
   const guardar = useCallback(
     ({ latitude, longitude, precisaoMetros, registradoEm }: LeituraGps) => {
       setLeitura('compartilhando')
@@ -108,20 +125,68 @@ export function useRastreamento(ativo: boolean, aoEncerrarNoServidor?: () => voi
     [atualizarFila, enviarPendentes],
   )
 
-  // App Android: o plugin mantém o GPS ligado em segundo plano, com uma notificação fixa.
+  // App Android: o serviço do app grava e envia o trajeto por conta própria, com uma
+  // notificação fixa. A tela liga o serviço, consulta o estado dele e o desliga no fim.
   useEffect(() => {
-    if (!ativo || !ehAppNativo()) return
-    ultimoEnvio.current = Date.now()
-    const parar = acompanharEmSegundoPlano(guardar, (motivo) =>
-      setLeitura(motivo === 'sem-permissao' ? 'sem-gps' : 'aguardando-gps'),
-    )
-    const ciclo = setInterval(() => void enviarPendentes(), INTERVALO_ENVIO_MS)
+    if (!ehAppNativo()) return
+    let encerrado = false
+    // Posições que versões anteriores do app guardavam na própria tela.
+    if (fila.current.length) void enviarPendentes()
+
+    const consultar = async () => {
+      const atual = await estadoDoRastreamentoNativo().catch(() => null)
+      if (encerrado || !atual) return
+      setPendentesNoApp(atual.pendentes)
+      if (!ativo) return
+      if (atual.encerradaNoServidor) aoEncerrar.current?.()
+      const recente = atual.ultimaLeitura !== null && Date.now() - atual.ultimaLeitura < SEM_SINAL_MS
+      setLeitura((anterior) => (anterior === 'sem-gps' ? anterior : recente ? 'compartilhando' : 'aguardando-gps'))
+    }
+    // Ligar de novo não atrapalha o serviço: atualiza a sessão e, se a localização tinha sido
+    // negada, pede outra vez.
+    const ligar = () => {
+      const sessao = lerSessao()
+      if (!sessao) return
+      iniciarRastreamentoNativo(enderecoDaApi(), sessao.token)
+        .then(() => !encerrado && setLeitura((anterior) => (anterior === 'sem-gps' ? 'aguardando-gps' : anterior)))
+        .catch((erro: { code?: string }) => {
+          if (!encerrado) setLeitura(erro?.code === 'SEM_PERMISSAO' ? 'sem-gps' : 'aguardando-gps')
+        })
+    }
+    const aoVoltar = () => document.visibilityState === 'visible' && ligar()
+
+    if (ativo) {
+      servicoLigado.current = true
+      ligar()
+      document.addEventListener('visibilitychange', aoVoltar)
+    } else {
+      // Só desliga o que esta tela ligou: ao reabrir o app, a lista ainda carregando parece
+      // "sem coleta", e desligar aí abriria um buraco no trajeto.
+      if (servicoLigado.current) void pararRastreamentoNativo()
+      servicoLigado.current = false
+      // Fora de coleta, o que ficou guardado no aparelho segue para o servidor.
+      void enviarPendentesNativos()
+        .then(({ pendentes: restantes }) => !encerrado && setPendentesNoApp(restantes))
+        .catch(() => undefined)
+    }
+
+    void consultar()
+    const ciclo = setInterval(() => void consultar(), INTERVALO_ESTADO_MS)
     return () => {
-      parar()
+      encerrado = true
       clearInterval(ciclo)
+      document.removeEventListener('visibilitychange', aoVoltar)
       setLeitura('aguardando-gps')
     }
-  }, [ativo, guardar, enviarPendentes])
+  }, [ativo, enviarPendentes])
+
+  // Antes de concluir, envia o que estiver guardado: na tela e, no app, no serviço.
+  const enviarTudo = useCallback(async () => {
+    await enviarPendentes()
+    if (!ehAppNativo()) return
+    const resultado = await enviarPendentesNativos().catch(() => null)
+    if (resultado) setPendentesNoApp(resultado.pendentes)
+  }, [enviarPendentes])
 
   // Navegador: GPS só com o app aberto, com recuperação quando o celular para de entregar.
   useEffect(() => {
@@ -205,5 +270,5 @@ export function useRastreamento(ativo: boolean, aoEncerrarNoServidor?: () => voi
       ? leitura
       : 'sem-gps'
 
-  return { estado, pendentes, enviarPendentes }
+  return { estado, pendentes: pendentes + pendentesNoApp, enviarPendentes: enviarTudo }
 }

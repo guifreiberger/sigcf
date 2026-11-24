@@ -2,24 +2,22 @@ import { CapacitorHttp } from '@capacitor/core'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { salvarSessao } from '../../api/cliente.ts'
-import type { LeituraGps } from '../../nativo/gpsEmSegundoPlano.ts'
+import * as servicoNativo from '../../nativo/rastreamento.ts'
 import { sessaoDe } from '../../testes/renderizar.tsx'
 import { useRastreamento } from './useRastreamento.ts'
 
 // Por padrão os testes rodam como no navegador; o bloco "no app Android" liga o modo nativo.
+// Lá, o serviço do app é falso e o teste decide o estado que ele informa.
 const nativo = vi.hoisted(() => ({
   ligado: false,
-  aoLer: null as ((leitura: LeituraGps) => void) | null,
-  aoFalhar: null as ((motivo: 'sem-permissao' | 'outro') => void) | null,
-  parar: () => {},
+  estado: { ativo: false, pendentes: 0, ultimaLeitura: null as number | null, encerradaNoServidor: false },
 }))
 vi.mock('../../nativo/plataforma.ts', () => ({ ehAppNativo: () => nativo.ligado }))
-vi.mock('../../nativo/gpsEmSegundoPlano.ts', () => ({
-  acompanharEmSegundoPlano: vi.fn((aoLer, aoFalhar) => {
-    nativo.aoLer = aoLer
-    nativo.aoFalhar = aoFalhar
-    return nativo.parar
-  }),
+vi.mock('../../nativo/rastreamento.ts', () => ({
+  iniciarRastreamentoNativo: vi.fn(async () => undefined),
+  pararRastreamentoNativo: vi.fn(async () => undefined),
+  estadoDoRastreamentoNativo: vi.fn(async () => ({ ...nativo.estado })),
+  enviarPendentesNativos: vi.fn(async () => ({ pendentes: 0 })),
 }))
 vi.mock('@capacitor/core', async (original) => ({
   ...(await original<typeof import('@capacitor/core')>()),
@@ -304,68 +302,144 @@ describe('useRastreamento', () => {
 
   describe('no app Android', () => {
     const httpNativo = vi.mocked(CapacitorHttp.request)
-    const leitura = (latitude: number, segundos: number): LeituraGps => ({
-      latitude,
-      longitude: -49.0713,
-      precisaoMetros: 6,
-      registradoEm: INICIO + segundos * 1000,
-    })
-    const lerNativo = (latitude: number, segundos: number) => {
-      vi.setSystemTime(INICIO + segundos * 1000)
-      act(() => nativo.aoLer?.(leitura(latitude, segundos)))
-    }
+    const servico = vi.mocked(servicoNativo)
+    // Deixa as consultas ao serviço falso terminarem.
+    const esperar = () => act(() => vi.advanceTimersByTimeAsync(0))
 
     beforeEach(() => {
+      vi.clearAllMocks()
       nativo.ligado = true
-      nativo.parar = vi.fn()
+      nativo.estado = { ativo: true, pendentes: 0, ultimaLeitura: null, encerradaNoServidor: false }
+      vi.stubEnv('VITE_API_URL', 'https://sigcf.exemplo/api')
       httpNativo.mockResolvedValue({ status: 204, data: '', headers: {}, url: '' })
     })
 
     afterEach(() => {
       nativo.ligado = false
       httpNativo.mockReset()
+      vi.unstubAllEnvs()
     })
 
-    it('grava pelo plugin de segundo plano, sem prender a tela nem usar o GPS do navegador', () => {
+    it('liga o serviço do app com o endereço da API e a sessão, sem prender a tela nem usar o GPS do navegador', async () => {
       const { wakeLock } = telaFalsa()
       const { result } = renderHook(() => useRastreamento(true))
+      await esperar()
 
-      expect(nativo.aoLer).toBeTypeOf('function')
+      expect(servico.iniciarRastreamentoNativo).toHaveBeenCalledWith('https://sigcf.exemplo/api', 'token-motorista')
       expect(gps.watchPosition).not.toHaveBeenCalled()
       expect(wakeLock.request).not.toHaveBeenCalled()
       expect(result.current.estado).toBe('aguardando-gps')
     })
 
-    it('envia as posições assim que juntam 15 s, sem depender do relógio da tela, que o Android congela', async () => {
+    it('mostra que compartilha enquanto o serviço recebe posições, e quantas aguardam envio', async () => {
+      nativo.estado.pendentes = 3
+      nativo.estado.ultimaLeitura = INICIO - 5_000
       const { result } = renderHook(() => useRastreamento(true))
+      await esperar()
 
-      lerNativo(-26.4851, 0)
-      lerNativo(-26.4849, 16)
-      await act(() => Promise.resolve())
-
-      expect(result.current.estado).toBe('compartilhando')
-      expect(httpNativo).toHaveBeenCalledTimes(1)
-      const { data } = httpNativo.mock.calls[0][0] as { data: { pontos: unknown[] } }
-      expect(data.pontos).toHaveLength(2)
+      expect(result.current).toMatchObject({ estado: 'compartilhando', pendentes: 3 })
     })
 
-    it('fica sem GPS quando o motorista não libera a localização', () => {
+    it('consulta o serviço a cada 5 s e volta a procurar o GPS quando a última posição passa de 30 s', async () => {
+      nativo.estado.ultimaLeitura = INICIO - 5_000
       const { result } = renderHook(() => useRastreamento(true))
+      await esperar()
+      expect(result.current.estado).toBe('compartilhando')
 
-      act(() => nativo.aoFalhar?.('sem-permissao'))
+      await act(() => vi.advanceTimersByTimeAsync(30_000))
+
+      expect(servico.estadoDoRastreamentoNativo.mock.calls.length).toBeGreaterThanOrEqual(7)
+      expect(result.current.estado).toBe('aguardando-gps')
+    })
+
+    it('fica sem GPS quando o motorista não libera a localização', async () => {
+      servico.iniciarRastreamentoNativo.mockRejectedValueOnce(Object.assign(new Error('negada'), { code: 'SEM_PERMISSAO' }))
+      const { result } = renderHook(() => useRastreamento(true))
+      await esperar()
+      await act(() => vi.advanceTimersByTimeAsync(5_000))
 
       expect(result.current.estado).toBe('sem-gps')
     })
 
-    it('desliga o GPS ao terminar a coleta', () => {
+    it('tenta ligar de novo quando o motorista volta ao app depois de liberar a localização', async () => {
+      servico.iniciarRastreamentoNativo.mockRejectedValueOnce(Object.assign(new Error('negada'), { code: 'SEM_PERMISSAO' }))
+      const { result } = renderHook(() => useRastreamento(true))
+      await esperar()
+      expect(result.current.estado).toBe('sem-gps')
+
+      act(() => document.dispatchEvent(new Event('visibilitychange')))
+      await esperar()
+
+      expect(servico.iniciarRastreamentoNativo).toHaveBeenCalledTimes(2)
+      expect(result.current.estado).toBe('aguardando-gps')
+    })
+
+    it('desliga o serviço ao terminar a coleta', async () => {
       const { result, rerender } = renderHook(({ ativo }) => useRastreamento(ativo), {
         initialProps: { ativo: true },
       })
+      await esperar()
 
       rerender({ ativo: false })
+      await esperar()
 
-      expect(nativo.parar).toHaveBeenCalled()
+      expect(servico.pararRastreamentoNativo).toHaveBeenCalledOnce()
       expect(result.current.estado).toBe('desligado')
+    })
+
+    // Ao reabrir o app no meio da coleta, a lista ainda está carregando e parece não haver
+    // coleta em andamento; desligar aí abriria um buraco no trajeto.
+    it('não desliga o serviço enquanto a lista de coletas carrega', async () => {
+      renderHook(() => useRastreamento(false))
+      await esperar()
+
+      expect(servico.pararRastreamentoNativo).not.toHaveBeenCalled()
+    })
+
+    it('ao abrir o app fora de coleta, envia o que ficou guardado no aparelho', async () => {
+      nativo.estado = { ativo: false, pendentes: 4, ultimaLeitura: INICIO - 60_000, encerradaNoServidor: false }
+      servico.enviarPendentesNativos.mockResolvedValueOnce({ pendentes: 0 })
+      const { result } = renderHook(() => useRastreamento(false))
+      await esperar()
+
+      expect(servico.enviarPendentesNativos).toHaveBeenCalled()
+      expect(result.current.estado).toBe('desligado')
+    })
+
+    it('envia na hora o que o serviço guardou, quando o motorista vai concluir a coleta', async () => {
+      nativo.estado.pendentes = 2
+      const { result } = renderHook(() => useRastreamento(true))
+      await esperar()
+      expect(result.current.pendentes).toBe(2)
+
+      servico.enviarPendentesNativos.mockResolvedValueOnce({ pendentes: 0 })
+      await act(() => result.current.enviarPendentes())
+
+      expect(servico.enviarPendentesNativos).toHaveBeenCalled()
+      expect(result.current.pendentes).toBe(0)
+    })
+
+    it('avisa a tela quando o servidor encerrou a coleta, para atualizar a lista', async () => {
+      nativo.estado.encerradaNoServidor = true
+      const aoEncerrar = vi.fn()
+      renderHook(() => useRastreamento(true, aoEncerrar))
+      await esperar()
+
+      expect(aoEncerrar).toHaveBeenCalled()
+    })
+
+    it('envia as posições que a versão anterior do app deixou guardadas na tela', async () => {
+      localStorage.setItem(
+        CHAVE_PENDENTES,
+        JSON.stringify([{ latitude: -26.48, longitude: -49.07, precisaoMetros: 5, registradoEm: '2026-11-04T14:50:00.000Z' }]),
+      )
+      const { result } = renderHook(() => useRastreamento(true))
+      await esperar()
+
+      expect(httpNativo).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://sigcf.exemplo/api/rastreamento/pontos', method: 'POST' }),
+      )
+      expect(result.current.pendentes).toBe(0)
     })
   })
 

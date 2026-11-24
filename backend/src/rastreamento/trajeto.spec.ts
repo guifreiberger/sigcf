@@ -1,5 +1,6 @@
 import { StatusOrdem } from '../ordens/status-ordem.enum.js';
 import {
+  corridasDaLeitura,
   distanciaEntre,
   distanciaPercorrida,
   duracaoEmSegundos,
@@ -59,9 +60,77 @@ describe('trajeto da coleta (RF11)', () => {
         0, 0.001, 0.002,
       ]);
     });
+
+    // Caso real (ordem 114): uma leitura com precisão de 22 m caiu a 900 m do caminho, o que
+    // daria 266 km/h para chegar até ela e 295 km/h para voltar.
+    it('descarta a leitura que salta para longe e volta, numa velocidade impossível', () => {
+      const pontos = [
+        ponto(0, 0),
+        ponto(1, 12),
+        ponto(9, 24),
+        ponto(2, 36),
+        ponto(3, 48),
+      ];
+
+      expect(pontosConfiaveis(pontos)).toEqual([
+        pontos[0],
+        pontos[1],
+        pontos[3],
+        pontos[4],
+      ]);
+    });
+
+    it('descarta também um salto de duas leituras seguidas', () => {
+      const pontos = [
+        ponto(0, 0),
+        ponto(1, 12),
+        ponto(20, 24),
+        ponto(20.1, 36),
+        ponto(2, 48),
+        ponto(3, 60),
+      ];
+
+      expect(pontosConfiaveis(pontos).map((p) => p.latitude)).toEqual([
+        0, 0.001, 0.002, 0.003,
+      ]);
+    });
+
+    it('descarta o salto na última leitura, que ainda não tem como ser confirmado', () => {
+      const pontos = [ponto(0, 0), ponto(1, 12), ponto(9, 24)];
+
+      expect(pontosConfiaveis(pontos)).toEqual([pontos[0], pontos[1]]);
+    });
+
+    it('aceita a nova posição quando as leituras seguintes a confirmam', () => {
+      const pontos = [
+        ponto(0, 0),
+        ponto(20, 12),
+        ponto(20.1, 24),
+        ponto(20.2, 36),
+        ponto(20.3, 48),
+      ];
+
+      expect(pontosConfiaveis(pontos)).toEqual(pontos);
+    });
+
+    it('mantém um deslocamento real depois de um tempo sem sinal', () => {
+      // 3,3 km em 5 minutos: 40 km/h.
+      const pontos = [ponto(0, 0), ponto(30, 300), ponto(31, 312)];
+
+      expect(pontosConfiaveis(pontos)).toEqual(pontos);
+    });
   });
 
   describe('distanciaPercorrida', () => {
+    it('não soma o vaivém de um salto do GPS', () => {
+      const comSalto = [ponto(0, 0), ponto(1, 12), ponto(9, 24), ponto(2, 36)];
+      const semSalto = [ponto(0, 0), ponto(1, 12), ponto(2, 36)];
+
+      expect(distanciaPercorrida(pontosConfiaveis(comSalto))).toBe(
+        distanciaPercorrida(pontosConfiaveis(semSalto)),
+      );
+    });
+
     it('soma os trechos do caminho', () => {
       const pontos = [ponto(0, 0), ponto(1, 15), ponto(2, 30), ponto(4, 45)];
 
@@ -173,6 +242,51 @@ describe('trajeto da coleta (RF11)', () => {
       duracaoSegundos: 300,
       ultimaPosicao: pontos[0],
       pontos: [pontos[1], pontos[2], pontos[0]],
+    });
+  });
+
+  describe('corridasDaLeitura', () => {
+    const corrida = (ordemId: number, inicio: number, fim: number | null) => ({
+      ordemId,
+      inicio: quando(inicio),
+      fim: fim === null ? null : quando(fim),
+    });
+    const aos = (minuto: number, segundo = 0) =>
+      new Date(Date.UTC(2026, 10, 4, 12, minuto, segundo));
+
+    it('leva a leitura para a corrida em que ela foi feita, já concluída ou não', () => {
+      const corridas = [corrida(14, 15, 24), corrida(16, 25, null)];
+
+      expect(corridasDaLeitura(aos(20), corridas)).toEqual([14]);
+      expect(corridasDaLeitura(aos(30), corridas)).toEqual([16]);
+    });
+
+    it('aceita a leitura feita logo antes do início ou logo depois do fim, pela diferença dos relógios', () => {
+      const corridas = [corrida(14, 15, 24)];
+
+      expect(corridasDaLeitura(aos(14, 30), corridas)).toEqual([14]);
+      expect(corridasDaLeitura(aos(24, 40), corridas)).toEqual([14]);
+    });
+
+    it('descarta a leitura de fora de qualquer corrida', () => {
+      const corridas = [corrida(14, 15, 24)];
+
+      expect(corridasDaLeitura(aos(10), corridas)).toEqual([]);
+      expect(corridasDaLeitura(aos(30), corridas)).toEqual([]);
+      expect(corridasDaLeitura(aos(20), [])).toEqual([]);
+    });
+
+    it('entre duas corridas seguidas, fica com a mais próxima', () => {
+      const corridas = [corrida(14, 15, 24), corrida(16, 25, null)];
+
+      expect(corridasDaLeitura(aos(24, 10), corridas)).toEqual([14]);
+      expect(corridasDaLeitura(aos(24, 50), corridas)).toEqual([16]);
+    });
+
+    it('vale para todas as corridas em andamento ao mesmo tempo', () => {
+      const corridas = [corrida(10, 15, null), corrida(11, 18, null)];
+
+      expect(corridasDaLeitura(aos(20), corridas)).toEqual([10, 11]);
     });
   });
 });

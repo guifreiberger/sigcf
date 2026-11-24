@@ -6,7 +6,7 @@ COPY . .
 RUN npm run build
 
 # Variante oficial do nginx que roda como usuário comum (sem root).
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 # A imagem do nginx preenche o template ao iniciar; o filtro evita tocar nas variáveis do próprio nginx.
 ENV API_UPSTREAM=http://backend:3000 \
     NGINX_ENVSUBST_FILTER=^API_
