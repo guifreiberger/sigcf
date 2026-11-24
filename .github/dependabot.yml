@@ -1,5 +1,7 @@
 # Atualizações automáticas de dependências (segurança e versões), em PRs semanais para a develop.
 # As versões menores e de correção de cada ecossistema vêm agrupadas num único PR.
+# Versões maiores ficam de fora até depois do Demo Day (dezembro de 2026): perto da entrega,
+# só entram correções. Para voltar a recebê-las, apague os blocos "ignore".
 version: 2
 updates:
   - package-ecosystem: npm
@@ -7,6 +9,9 @@ updates:
     target-branch: develop
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: chore
     groups:
@@ -19,6 +24,9 @@ updates:
     target-branch: develop
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: chore
     groups:
@@ -31,6 +39,9 @@ updates:
     target-branch: develop
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: ci
     groups:
@@ -42,6 +53,9 @@ updates:
     target-branch: develop
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: chore
 
@@ -50,5 +64,8 @@ updates:
     target-branch: develop
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: chore
